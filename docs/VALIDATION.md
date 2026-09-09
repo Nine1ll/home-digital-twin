@@ -32,6 +32,6 @@
 
 라이브러리 경고 2건은 Starlette의 TestClient/httpx 및 AnyIO 별칭 deprecation이며 실패는 아닙니다. 핵심 테스트는 통과했고 경고를 감추지는 않았습니다.
 
-## GitHub 반영 상태
+## Git 이력
 
-로컬 Git 커밋은 준비했습니다. 최초 GitHub 파일 생성 요청이 `403 Resource not accessible by integration`으로 거부되어 원격 저장소에는 반영되지 않았습니다. 권한이 해결되면 로컬 이력을 push할 수 있습니다. 다운로드 묶음의 Git bundle로도 동일 이력을 복원할 수 있습니다.
+원본 보존 → 백엔드 → 프론트 → 테스트·문서 순서로 학습용 커밋을 구성했습니다. GitHub 연결을 통해 같은 단계의 커밋을 재생성하므로 로컬 초기 커밋과 GitHub 커밋의 SHA는 다를 수 있습니다. 파일 내용은 Git 트리로 비교합니다. 원격 CI 실행 결과는 GitHub Actions에서 별도로 확인하세요.
