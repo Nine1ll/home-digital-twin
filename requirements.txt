@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+SQLAlchemy
+httpx
+bcrypt
+python-jose[cryptography]
+python-multipart
+email-validator
+scikit-learn
+Pillow
+psycopg[binary]
