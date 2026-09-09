@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우리집 재고</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/tabler-icons.min.css">
+<style>
+  :root{
+    --bg:#EFECE3;          /* warm paper */
+    --surface:#FBFAF6;
+    --card:#FFFFFF;
+    --ink:#1E2230;         /* deep ink */
+    --ink-2:#565A68;
+    --muted:#9B9E9A;
+    --line:#E3E0D6;
+    --line-2:#CFCCC1;
+    --accent:#2B5473;      /* ink blue */
+    --accent-d:#1E3D55;
+    --accent-bg:#E4EDF3;
+    --warn:#B0741C;        /* amber */
+    --warn-bg:#F8EEDB;
+    --danger:#9E3535;      /* brick */
+    --danger-bg:#F6E5E3;
+    --ok:#3F7A4B;
+    --radius:12px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0; padding:0;}
+  body{background:var(--bg); font-family:var(--font); color:var(--ink); -webkit-font-smoothing:antialiased;
+    min-height:100vh; display:flex; justify-content:center; align-items:flex-start;}
+  .app{width:100%; max-width:440px; min-height:100vh; background:var(--surface); position:relative;
+    display:flex; flex-direction:column; box-shadow:0 0 40px rgba(30,34,48,0.06);}
+
+  /* ---------- top bar ---------- */
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:16px 18px 12px;
+    border-bottom:1px solid var(--line);}
+  .topbar .house{display:flex; align-items:center; gap:7px; font-size:14px; font-weight:600; color:var(--ink);}
+  .topbar .house i{color:var(--accent); font-size:18px;}
+  .topbar .logout{border:none; background:none; color:var(--muted); font-size:12.5px; cursor:pointer; padding:4px;}
+
+  /* ---------- screens ---------- */
+  .screens{flex:1; overflow-y:auto; padding:16px 18px 90px;}
+  .screen{display:none;}
+  .screen.active{display:block; animation:fade .22s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+  h1.title{font-size:22px; font-weight:650; margin:2px 0 3px; letter-spacing:-0.01em;}
+  .sub{font-size:12.5px; color:var(--ink-2); margin:0 0 16px;}
+
+  /* ---------- tab bar ---------- */
+  .tabbar{position:sticky; bottom:0; display:flex; background:var(--surface);
+    border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom);}
+  .tab{flex:1; border:none; background:none; padding:10px 0 9px; cursor:pointer; color:var(--muted);
+    display:flex; flex-direction:column; align-items:center; gap:3px; font-family:var(--font); font-size:9.5px; transition:color .15s;}
+  .tab i{font-size:19px;}
+  .tab.active{color:var(--accent);}
+
+  /* ---------- inputs ---------- */
+  label.fld{display:block; font-size:12px; color:var(--ink-2); margin:12px 0 5px; font-weight:500;}
+  input, select{width:100%; padding:11px 12px; border:1px solid var(--line-2); border-radius:9px;
+    font-size:15px; font-family:var(--font); background:var(--card); color:var(--ink); outline:none; transition:border-color .15s;}
+  input:focus, select:focus{border-color:var(--accent);}
+  .btn{width:100%; padding:12px; border:none; border-radius:9px; background:var(--accent); color:#fff;
+    font-size:15px; font-weight:600; cursor:pointer; font-family:var(--font); transition:background .15s;}
+  .btn:hover{background:var(--accent-d);}
+  .btn:disabled{opacity:.55; cursor:default;}
+  .btn.ghost{background:none; color:var(--accent); border:1px solid var(--line-2);}
+  .btn.ghost:hover{background:var(--accent-bg);}
+  .btn.sm{width:auto; padding:7px 13px; font-size:13px; border-radius:8px;}
+
+  /* ---------- search ---------- */
+  .searchbar{display:flex; align-items:center; gap:8px; border:1px solid var(--line-2); border-radius:11px;
+    padding:11px 13px; background:var(--card); margin-bottom:6px;}
+  .searchbar i{color:var(--muted); font-size:18px;}
+  .searchbar input{border:none; padding:0; font-size:15px; background:none;}
+  .hint{font-size:11.5px; color:var(--muted); margin:0 2px 12px;}
+
+  /* ---------- item row ---------- */
+  .item{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+    padding:13px 0; border-bottom:1px solid var(--line);}
+  .item .nm{font-size:15px; font-weight:600;}
+  .item .nm .qty{color:var(--muted); font-weight:400; font-size:13.5px;}
+  .item .path{font-size:12px; color:var(--ink-2); margin-top:3px; display:flex; align-items:center; gap:4px;}
+  .item .path i{font-size:13px; color:var(--muted);}
+  .item .right{display:flex; flex-direction:column; align-items:flex-end; gap:7px; flex-shrink:0;}
+  .dday{font-size:12px; white-space:nowrap; font-weight:600;}
+  .dday.soon{color:var(--warn);} .dday.over{color:var(--danger);} .dday.ok{color:var(--ink-2); font-weight:500;}
+  .take{font-size:11.5px; padding:4px 10px; border:1px solid var(--line-2); border-radius:7px;
+    background:none; cursor:pointer; color:var(--ink-2); font-family:var(--font);}
+  .take:hover{background:var(--accent-bg); border-color:var(--accent); color:var(--accent);}
+
+  /* ---------- location tree ---------- */
+  .loc{display:flex; align-items:center; gap:9px; padding:11px 0; border-bottom:1px solid var(--line);}
+  .loc i.ico{font-size:17px; color:var(--accent);}
+  .loc .lname{font-size:14.5px; font-weight:500;}
+  .loc .del{margin-left:auto; border:none; background:none; color:var(--muted); cursor:pointer; font-size:15px; padding:4px;}
+  .loc .del:hover{color:var(--danger);}
+
+  /* ---------- expiry cards ---------- */
+  .statcards{display:flex; gap:10px; margin:6px 0 16px;}
+  .statcard{flex:1; border-radius:11px; padding:13px;}
+  .statcard.over{background:var(--danger-bg);}
+  .statcard.soon{background:var(--warn-bg);}
+  .statcard .n{font-size:24px; font-weight:700; line-height:1;}
+  .statcard.over .n{color:var(--danger);} .statcard.soon .n{color:var(--warn);}
+  .statcard .l{font-size:11.5px; margin-top:4px;}
+  .statcard.over .l{color:var(--danger);} .statcard.soon .l{color:var(--warn);}
+
+  /* ---------- misc ---------- */
+  .empty{text-align:center; color:var(--muted); font-size:13px; padding:40px 12px; line-height:1.6;}
+  .chip{display:inline-flex; align-items:center; gap:5px; font-size:13px; padding:7px 13px;
+    border:1px solid var(--line-2); border-radius:18px; background:var(--card); cursor:pointer; margin:0 6px 6px 0; font-family:var(--font);}
+  .chip:hover{border-color:var(--accent); color:var(--accent);}
+  .divider{text-align:center; font-size:11.5px; color:var(--muted); margin:16px 0;}
+  .scanbox{width:100%; padding:22px; border:1.5px dashed var(--line-2); border-radius:12px; background:none;
+    cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:7px; color:var(--accent); font-family:var(--font);}
+  .scanbox i{font-size:32px;}
+  .scanbox .t{font-size:14px; font-weight:600;}
+  .scanbox .s{font-size:11px; color:var(--muted);}
+  .invite{margin-top:14px; padding:14px; background:var(--card); border:1px solid var(--line); border-radius:11px; text-align:center;}
+  .invite .l{font-size:11px; color:var(--muted); margin-bottom:4px;}
+  .invite .code{font-size:26px; font-weight:700; letter-spacing:6px; color:var(--accent);}
+  .settings-row{display:flex; justify-content:space-between; align-items:center; padding:14px 2px; border-bottom:1px solid var(--line); font-size:14.5px;}
+  .settings-row i{color:var(--muted); font-size:17px;}
+
+  /* ---------- auth ---------- */
+  .auth{flex:1; display:flex; flex-direction:column; justify-content:center; padding:34px 26px 60px; min-height:100vh;}
+  .brand{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  .brand i{font-size:30px; color:var(--accent);}
+  .brand .n{font-size:25px; font-weight:700; letter-spacing:-0.02em;}
+  .auth .tag{font-size:13.5px; color:var(--ink-2); margin:0 0 26px; line-height:1.55;}
+  .auth-switch{text-align:center; font-size:13px; color:var(--ink-2); margin-top:18px;}
+  .auth-switch b{color:var(--accent); cursor:pointer;}
+  .seg{display:flex; background:var(--accent-bg); border-radius:9px; padding:3px; margin-bottom:20px;}
+  .seg button{flex:1; border:none; background:none; padding:9px; font-size:13.5px; font-weight:600; border-radius:7px;
+    cursor:pointer; color:var(--accent); font-family:var(--font);}
+  .seg button.on{background:var(--card); color:var(--accent-d); box-shadow:0 1px 3px rgba(30,34,48,.08);}
+
+  /* ---------- toast + modal ---------- */
+  .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:96px; background:var(--ink); color:#fff;
+    font-size:13px; padding:10px 16px; border-radius:9px; z-index:60; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; max-width:88%;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
+  .toast.err{background:var(--danger);}
+  .modal-bg{position:fixed; inset:0; background:rgba(30,34,48,.4); display:none; align-items:flex-end; justify-content:center; z-index:50;}
+  .modal-bg.show{display:flex;}
+  .modal{width:100%; max-width:440px; background:var(--surface); border-radius:18px 18px 0 0; padding:22px 20px 30px; animation:up .25s ease;}
+  @keyframes up{from{transform:translateY(30px);} to{transform:none;}}
+  .modal h2{font-size:18px; margin:0 0 4px;} .modal .mh{font-size:12.5px; color:var(--ink-2); margin:0 0 14px;}
+  .modal .row{display:flex; gap:10px; margin-top:16px;}
+  .spinner{display:inline-block; width:15px; height:15px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="toast" id="toast"></div>
+<div class="modal-bg" id="modalbg"><div class="modal" id="modal"></div></div>
+
+<script>
+/* ============================================================
+   home-inventory · frontend (single file)
+   connects to the deployed FastAPI backend
+   ============================================================ */
+const API = "https://home-inventory-9ajy.onrender.com";
+
+/* ---------- tiny helpers ---------- */
+const $ = (s,r=document)=>r.querySelector(s);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const token = ()=>sessionStorage.getItem("hh_token");
+const setToken = t=>t?sessionStorage.setItem("hh_token",t):sessionStorage.removeItem("hh_token");
+
+function toast(msg, isErr){
+  const t=$("#toast"); t.textContent=msg; t.className="toast show"+(isErr?" err":"");
+  clearTimeout(t._t); t._t=setTimeout(()=>t.className="toast",2200);
+}
+
+/* ---------- API layer ---------- */
+async function api(path, {method="GET", body, form}={}){
+  const headers={};
+  const t=token(); if(t) headers["Authorization"]="Bearer "+t;
+  let payload;
+  if(form){ headers["Content-Type"]="application/x-www-form-urlencoded"; payload=new URLSearchParams(form).toString(); }
+  else if(body){ headers["Content-Type"]="application/json"; payload=JSON.stringify(body); }
+  let res;
+  try{
+    res=await fetch(API+path,{method,headers,body:payload});
+  }catch(e){
+    throw new Error("서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.");
+  }
+  if(res.status===401){ setToken(null); renderAuth(); throw new Error("로그인이 필요해요."); }
+  let data=null; try{ data=await res.json(); }catch(_){}
+  if(!res.ok){
+    let msg = data && data.detail;
+    if(Array.isArray(msg)) msg=msg.map(d=>d.msg).join(", ");
+    throw new Error(msg || ("요청 실패 ("+res.status+")"));
+  }
+  return data;
+}
+
+/* ---------- date / expiry ---------- */
+function daysLeft(dateStr){
+  if(!dateStr) return null;
+  const d=new Date(dateStr+"T00:00:00"); const now=new Date(); now.setHours(0,0,0,0);
+  return Math.round((d-now)/86400000);
+}
+function ddayHTML(dateStr, precomputed){
+  const dl = precomputed!=null ? precomputed : daysLeft(dateStr);
+  if(dl==null) return '';
+  if(dl<0) return '<span class="dday over">만료 '+(-dl)+'일</span>';
+  if(dl===0) return '<span class="dday soon">오늘까지</span>';
+  if(dl<=3) return '<span class="dday soon">D-'+dl+'</span>';
+  return '<span class="dday ok">D-'+dl+'</span>';
+}
+
+/* ============================================================
+   AUTH SCREEN
+   ============================================================ */
+let authMode="login";
+function renderAuth(){
+  const app=$("#app");
+  app.innerHTML = `
+  <div class="auth">
+    <div class="brand"><i class="ti ti-box-seam"></i><span class="n">우리집 재고</span></div>
+    <p class="tag">냉장고든 창고든, 어디에 뒀는지 검색 한 번으로 찾아요.</p>
+    <div class="seg">
+      <button id="seg-login" class="${authMode==='login'?'on':''}">로그인</button>
+      <button id="seg-signup" class="${authMode==='signup'?'on':''}">시작하기</button>
+    </div>
+    <form id="authform">
+      <div id="hh-name-wrap" style="${authMode==='signup'?'':'display:none'}">
+        <label class="fld">우리집 이름</label>
+        <input id="a-house" placeholder="예: 본가, 우리집" autocomplete="off">
+      </div>
+      <label class="fld">이메일</label>
+      <input id="a-email" type="email" placeholder="you@example.com" autocomplete="email">
+      <label class="fld">비밀번호 ${authMode==='signup'?'<span style="color:var(--muted)">· 8자 이상</span>':''}</label>
+      <input id="a-pw" type="password" placeholder="비밀번호" autocomplete="${authMode==='signup'?'new-password':'current-password'}">
+      <div style="height:20px"></div>
+      <button class="btn" id="a-submit" type="submit">${authMode==='login'?'로그인':'우리집 만들기'}</button>
+    </form>
+    <p class="auth-switch">${authMode==='login'?'처음이신가요? <b id="to-signup">우리집 만들기</b>':'이미 계정이 있나요? <b id="to-login">로그인</b>'}</p>
+  </div>`;
+
+  $("#seg-login").onclick=()=>{authMode="login";renderAuth();};
+  $("#seg-signup").onclick=()=>{authMode="signup";renderAuth();};
+  const toS=$("#to-signup"), toL=$("#to-login");
+  if(toS) toS.onclick=()=>{authMode="signup";renderAuth();};
+  if(toL) toL.onclick=()=>{authMode="login";renderAuth();};
+
+  $("#authform").onsubmit=async(e)=>{
+    e.preventDefault();
+    const email=$("#a-email").value.trim(), pw=$("#a-pw").value;
+    const btn=$("#a-submit");
+    if(!email||!pw){ toast("이메일과 비밀번호를 입력해 주세요.",true); return; }
+    btn.disabled=true; const label=btn.textContent; btn.innerHTML='<span class="spinner"></span>';
+    try{
+      let data;
+      if(authMode==="signup"){
+        const house=$("#a-house").value.trim();
+        if(!house){ toast("우리집 이름을 정해 주세요.",true); btn.disabled=false; btn.textContent=label; return; }
+        if(pw.length<8){ toast("비밀번호는 8자 이상이어야 해요.",true); btn.disabled=false; btn.textContent=label; return; }
+        data=await api("/auth/signup",{method:"POST",body:{email,password:pw,household_name:house}});
+      }else{
+        // login uses form-encoded, username=email  (OAuth2 password flow)
+        data=await api("/auth/login",{method:"POST",form:{username:email,password:pw}});
+      }
+      setToken(data.access_token);
+      toast(authMode==="signup"?"환영해요! 우리집이 만들어졌어요.":"다시 오셨네요.");
+      enterApp();
+    }catch(err){
+      toast(err.message,true); btn.disabled=false; btn.textContent=label;
+    }
+  };
+}
+
+/* ============================================================
+   MAIN APP SHELL
+   ============================================================ */
+let current="search";
+function enterApp(){
+  const app=$("#app");
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="house"><i class="ti ti-home-2"></i><span id="house-name">우리집</span></div>
+      <button class="logout" id="logout">로그아웃</button>
+    </div>
+    <div class="screens" id="screens"></div>
+    <nav class="tabbar">
+      ${tab("search","ti-search","검색")}
+      ${tab("tree","ti-stack-2","재고")}
+      ${tab("add","ti-plus","등록")}
+      ${tab("low","ti-battery-2","부족")}
+      ${tab("expiry","ti-clock-hour-4","유통기한")}
+      ${tab("settings","ti-settings","설정")}
+    </nav>`;
+  $("#logout").onclick=()=>{ setToken(null); renderAuth(); };
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>go(b.dataset.s));
+  go("search");
+}
+function tab(s,ic,label){ return `<button class="tab" data-s="${s}"><i class="ti ${ic}"></i>${label}</button>`; }
+function go(s){
+  current=s;
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.s===s));
+  screensRender[s]();
+}
+
+/* ---------- shared: load locations (cached per view) ---------- */
+async function loadLocations(){ return api("/locations"); }
+
+/* ============================================================
+   SCREEN: SEARCH  (also default landing)
+   ============================================================ */
+let searchTimer=null, lastQuery="";
+const screensRender = {};
+
+screensRender.search = async function(){
+  const s=$("#screens");
+  s.innerHTML = `
+    <h1 class="title">무엇을 찾으세요?</h1>
+    <div class="searchbar">
+      <i class="ti ti-search"></i>
+      <input id="q" placeholder="우유, 계란, 휴지…" value="${esc(lastQuery)}" autocomplete="off">
+    </div>
+    <p class="hint">같은 물건도 유통기한이 다르면 따로 보여드려요.</p>
+    <div id="results"></div>`;
+  const q=$("#q");
+  q.focus(); q.setSelectionRange(q.value.length,q.value.length);
+  q.oninput=()=>{ lastQuery=q.value; clearTimeout(searchTimer); searchTimer=setTimeout(runSearch,280); };
+  if(lastQuery.trim()) runSearch(); else $("#results").innerHTML =
+    `<div class="empty"><i class="ti ti-search" style="font-size:26px;opacity:.4"></i><br>찾을 물건 이름을 입력해 보세요.</div>`;
+};
+async function runSearch(){
+  const box=$("#results"); if(!box) return;
+  const q=lastQuery.trim();
+  if(!q){ box.innerHTML=`<div class="empty">찾을 물건 이름을 입력해 보세요.</div>`; return; }
+  box.innerHTML=`<div class="empty"><span class="spinner" style="border-color:rgba(43,84,115,.3);border-top-color:var(--accent)"></span></div>`;
+  try{
+    const rows=await api("/items/search?q="+encodeURIComponent(q));
+    if(!rows.length){ box.innerHTML=`<div class="empty">'${esc(q)}'에 맞는 물건이 없어요.<br>등록 탭에서 추가할 수 있어요.</div>`; return; }
+    box.innerHTML=rows.map(itemRow).join("");
+    bindTakes(box);
+  }catch(e){ box.innerHTML=`<div class="empty">${esc(e.message)}</div>`; }
+}
+function itemRow(it){
+  const path=it.location_path || "위치 미지정";
+  return `<div class="item">
+    <div style="min-width:0">
+      <div class="nm">${esc(it.name)} <span class="qty">×${it.quantity}</span></div>
+      <div class="path"><i class="ti ti-map-pin"></i>${esc(path)}</div>
+    </div>
+    <div class="right">
+      ${ddayHTML(it.expiry_date, it.days_left)}
+      <button class="take" data-id="${it.id}" data-name="${esc(it.name)}">꺼내기</button>
+    </div>
+  </div>`;
+}
+function bindTakes(scope){
+  scope.querySelectorAll(".take").forEach(b=>b.onclick=()=>openConsume(b.dataset.id,b.dataset.name));
+}
+
+/* ============================================================
+   SCREEN: 재고 (locations + what's inside each)
+   ============================================================ */
+screensRender.tree = async function(){
+  const s=$("#screens");
+  s.innerHTML=`<h1 class="title">우리집 재고</h1><p class="sub">어느 위치에 무엇이 있는지 한눈에 봐요.</p>
+    <div id="stock"></div>
+    <button class="btn ghost" id="add-loc" style="margin-top:16px"><i class="ti ti-plus" style="vertical-align:-2px"></i> 위치 추가</button>`;
+  $("#add-loc").onclick=()=>openAddLocation();
+  const box=$("#stock");
+  box.innerHTML=`<div class="empty"><span class="spinner" style="border-color:rgba(43,84,115,.3);border-top-color:var(--accent)"></span></div>`;
+  try{
+    const [locs, items] = await Promise.all([ loadLocations(), api("/items") ]);
+    if(!locs.length){ box.innerHTML=`<div class="empty">아직 위치가 없어요.<br>주방, 창고처럼 큰 곳부터 만들어 보세요.</div>`; return; }
+    box.innerHTML=renderStock(locs, items||[]);
+    box.querySelectorAll(".del").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); confirmDeleteLocation(b.dataset.id,b.dataset.name); });
+    box.querySelectorAll(".loc.clickable").forEach(h=>h.onclick=()=>{
+      const body=h.nextElementSibling;
+      if(body && body.classList.contains("loc-body")){
+        const open=body.style.display!=="none";
+        body.style.display=open?"none":"block";
+        const chev=h.querySelector(".chev"); if(chev) chev.style.transform=open?"":"rotate(90deg)";
+      }
+    });
+    bindTakes(box);
+  }catch(e){ box.innerHTML=`<div class="empty">${esc(e.message)}</div>`; }
+};
+function renderStock(locs, items){
+  const byParent={}; locs.forEach(l=>{ const p=l.parent_id||0; (byParent[p]=byParent[p]||[]).push(l); });
+  const itemsByLoc={}; items.forEach(it=>{ (itemsByLoc[it.location_id]=itemsByLoc[it.location_id]||[]).push(it); });
+  // count items in a location AND all descendants
+  function countDeep(id){
+    let n=(itemsByLoc[id]||[]).reduce((a,it)=>a+it.quantity,0);
+    (byParent[id]||[]).forEach(c=>{ n+=countDeep(c.id); });
+    return n;
+  }
+  const out=[];
+  (function walk(pid,depth){
+    (byParent[pid]||[]).forEach(l=>{
+      const hasKids=byParent[l.id];
+      const here=itemsByLoc[l.id]||[];
+      const deepCount=countDeep(l.id);
+      out.push(`<div class="loc clickable" style="padding-left:${depth*16}px">
+        <i class="ti ti-chevron-right chev" style="font-size:14px;color:var(--muted);transition:transform .15s;${(here.length||hasKids)?'':'visibility:hidden'}"></i>
+        <i class="ti ${depth===0?'ti-building-warehouse':(hasKids?'ti-folder':'ti-box')} ico"></i>
+        <span class="lname">${esc(l.name)}</span>
+        <span style="font-size:12px;color:var(--muted);margin-left:6px">${deepCount>0?deepCount+'개':''}</span>
+        <button class="del" data-id="${l.id}" data-name="${esc(l.name)}" title="삭제"><i class="ti ti-trash"></i></button>
+      </div>`);
+      // items directly in this location
+      if(here.length){
+        const rows=here.map(it=>`<div class="item" style="padding-left:${depth*16+26}px">
+          <div style="min-width:0"><div class="nm">${esc(it.name)} <span class="qty">×${it.quantity}</span></div>
+          ${it.expiry_date?`<div class="path"><i class="ti ti-clock-hour-4"></i>${ddayText(it.expiry_date)}</div>`:''}</div>
+          <div class="right"><button class="take" data-id="${it.id}" data-name="${esc(it.name)}">꺼내기</button></div>
+        </div>`).join("");
+        out.push(`<div class="loc-body" style="display:none">${rows}</div>`);
+      }
+      walk(l.id,depth+1);
+    });
+  })(0,0);
+  return out.join("");
+}
+function ddayText(dateStr){
+  const dl=daysLeft(dateStr); if(dl==null) return '';
+  if(dl<0) return '만료 '+(-dl)+'일 지남';
+  if(dl===0) return '오늘까지';
+  return 'D-'+dl;
+}
+
+/* ============================================================
+   SCREEN: ADD ITEM
+   ============================================================ */
+let addState={name:"",barcode:"",location_id:null,expiry:"",qty:1};
+screensRender.add = async function(){
+  const s=$("#screens");
+  s.innerHTML=`<h1 class="title">물건 등록</h1>
+    <div class="scanbox" id="scanbox">
+      <i class="ti ti-scan"></i><div class="t">바코드 스캔</div><div class="s">스캔하면 상품명을 자동으로 채워요</div>
+    </div>
+    <div class="divider">또는</div>
+    <div id="add-form"></div>`;
+  $("#scanbox").onclick=simulateScan;
+  renderAddForm();
+};
+async function renderAddForm(){
+  const wrap=$("#add-form"); if(!wrap) return;
+  let locs=[]; try{ locs=await loadLocations(); }catch(e){}
+  const opts = locs.length
+    ? locs.map(l=>`<option value="${l.id}" ${addState.location_id==l.id?'selected':''}>${esc(l.path||l.name)}</option>`).join("")
+    : `<option value="">위치를 먼저 만들어 주세요</option>`;
+  wrap.innerHTML=`
+    <label class="fld">물건 이름</label>
+    <input id="i-name" placeholder="예: 우유" value="${esc(addState.name)}">
+    <label class="fld">위치</label>
+    <select id="i-loc">${opts}</select>
+    <label class="fld">수량</label>
+    <input id="i-qty" type="number" min="1" value="${addState.qty}">
+    <label class="fld">유통기한 <span style="color:var(--muted)">· 선택</span></label>
+    <input id="i-exp" type="date" value="${esc(addState.expiry)}">
+    <div style="height:18px"></div>
+    <button class="btn" id="i-save"${locs.length?'':' disabled'}>등록하기</button>`;
+  $("#i-save").onclick=saveItem;
+}
+function simulateScan(){
+  // real barcode scanning needs device camera + a scanner lib (v2).
+  // here we simulate the "unknown barcode → name entry → dictionary grows" flow.
+  const fakeBarcode = "880"+Math.floor(1000000000+Math.random()*8999999999);
+  addState.barcode=fakeBarcode;
+  toast("바코드 인식: "+fakeBarcode+" · 처음 보는 상품이에요");
+  const nm=$("#i-name"); if(nm){ nm.focus(); nm.placeholder="이 바코드의 상품명을 알려주세요"; }
+}
+async function saveItem(){
+  const name=$("#i-name").value.trim();
+  const loc=$("#i-loc").value;
+  const qty=parseInt($("#i-qty").value||"1",10);
+  const exp=$("#i-exp").value;
+  if(!name){ toast("물건 이름을 입력해 주세요.",true); return; }
+  if(!loc){ toast("위치를 선택해 주세요.",true); return; }
+  const btn=$("#i-save"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+  const body={name,quantity:qty>0?qty:1,location_id:parseInt(loc,10)};
+  if(addState.barcode) body.barcode=addState.barcode;
+  if(exp) body.expiry_date=exp;
+  try{
+    await api("/items",{method:"POST",body});
+    toast("'"+name+"' 등록 완료 · 활동 기록에 남겼어요");
+    addState={name:"",barcode:"",location_id:parseInt(loc,10),expiry:"",qty:1}; // keep location for fast repeat
+    renderAddForm();
+  }catch(e){
+    toast(e.message,true); btn.disabled=false; btn.textContent="등록하기";
+  }
+}
+
+/* ============================================================
+   SCREEN: 부족 (low stock — temporary: sort by quantity asc)
+   ============================================================ */
+const LOW_THRESHOLD = 2; // 임시 기준: 2개 이하를 '부족'으로. (진짜 기준은 품목별 min_quantity — 백엔드 백로그)
+screensRender.low = async function(){
+  const s=$("#screens");
+  s.innerHTML=`<h1 class="title">떨어져 가요</h1><p class="sub">수량이 적은 물건을 모았어요. 장 볼 때 참고하세요.</p>
+    <div id="low-body"><div class="empty"><span class="spinner" style="border-color:rgba(43,84,115,.3);border-top-color:var(--accent)"></span></div></div>`;
+  const body=$("#low-body");
+  try{
+    const items=await api("/items");
+    // build a location path map for display
+    let locs=[]; try{ locs=await loadLocations(); }catch(_){}
+    const pathById={}; locs.forEach(l=>pathById[l.id]=l.path||l.name);
+    const low=(items||[]).filter(it=>it.quantity<=LOW_THRESHOLD).sort((a,b)=>a.quantity-b.quantity);
+    if(!low.length){ body.innerHTML=`<div class="empty"><i class="ti ti-basket-check" style="font-size:28px;color:var(--ok)"></i><br>부족한 물건이 없어요.<br><span style="font-size:11.5px">${LOW_THRESHOLD}개 이하가 되면 여기 모여요.</span></div>`; return; }
+    body.innerHTML = `<p class="hint" style="margin-bottom:10px">지금은 ${LOW_THRESHOLD}개 이하를 부족으로 봐요. 나중에 물건마다 기준을 정할 수 있게 할게요.</p>`
+      + low.map(it=>{
+        const path=pathById[it.location_id]||"위치 미지정";
+        const urgent=it.quantity<=1;
+        return `<div class="item">
+          <div style="min-width:0"><div class="nm">${esc(it.name)} <span class="qty" style="${urgent?'color:var(--danger);font-weight:600':''}">×${it.quantity}</span></div>
+          <div class="path"><i class="ti ti-map-pin"></i>${esc(path)}</div></div>
+          <div class="right"><span class="dday ${urgent?'over':'soon'}">${urgent?'거의 없음':'적음'}</span>
+          <button class="take" data-id="${it.id}" data-name="${esc(it.name)}">꺼내기</button></div>
+        </div>`;
+      }).join("");
+    bindTakes(body);
+  }catch(e){ body.innerHTML=`<div class="empty">${esc(e.message)}</div>`; }
+};
+
+/* ============================================================
+   SCREEN: EXPIRY
+   ============================================================ */
+screensRender.expiry = async function(){
+  const s=$("#screens");
+  s.innerHTML=`<h1 class="title">유통기한</h1><p class="sub">임박·만료된 물건을 위치까지 함께 보여드려요.</p>
+    <div id="exp-body"><div class="empty"><span class="spinner" style="border-color:rgba(43,84,115,.3);border-top-color:var(--accent)"></span></div></div>`;
+  const body=$("#exp-body");
+  try{
+    const rows=await api("/items/expiring?within_days=3");
+    const over=rows.filter(r=>r.days_left<0).length;
+    const soon=rows.filter(r=>r.days_left>=0&&r.days_left<=3).length;
+    let html=`<div class="statcards">
+      <div class="statcard over"><div class="n">${over}</div><div class="l">만료됨</div></div>
+      <div class="statcard soon"><div class="n">${soon}</div><div class="l">3일 이내</div></div></div>`;
+    if(!rows.length) html+=`<div class="empty"><i class="ti ti-circle-check" style="font-size:28px;color:var(--ok)"></i><br>임박한 물건이 없어요. 잘 관리되고 있네요.</div>`;
+    else html+=rows.map(itemRow).join("");
+    body.innerHTML=html;
+    bindTakes(body);
+  }catch(e){ body.innerHTML=`<div class="empty">${esc(e.message)}</div>`; }
+};
+
+/* ============================================================
+   SCREEN: SETTINGS
+   ============================================================ */
+screensRender.settings = async function(){
+  const s=$("#screens");
+  s.innerHTML=`<h1 class="title">설정</h1>
+    <div class="invite">
+      <div class="l">가족 초대 코드</div>
+      <div class="code" id="invite-code">— — — — — —</div>
+      <p style="font-size:11.5px;color:var(--ink-2);margin:10px 0 0;line-height:1.5">
+        가족이 이 코드로 합류하면 같은 재고를 함께 봐요.<br>
+        <span style="color:var(--muted)">(합류 기능은 준비 중이에요)</span>
+      </p>
+    </div>
+    <div class="settings-row">위치 구조 편집 <i class="ti ti-chevron-right"></i></div>
+    <div class="settings-row">임박 기준 · 현재 3일 <i class="ti ti-chevron-right"></i></div>
+    <div class="settings-row" id="s-logout">로그아웃 <i class="ti ti-logout"></i></div>`;
+  $("#s-logout").onclick=()=>{ setToken(null); renderAuth(); };
+  // invite code isn't exposed by the API yet — show placeholder honestly
+};
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+function openModal(html){ $("#modal").innerHTML=html; $("#modalbg").classList.add("show"); }
+function closeModal(){ $("#modalbg").classList.remove("show"); }
+$("#modalbg").onclick=e=>{ if(e.target.id==="modalbg") closeModal(); };
+
+async function openAddLocation(){
+  let locs=[]; try{ locs=await loadLocations(); }catch(e){}
+  const opts=`<option value="">최상위 (예: 주방, 창고)</option>`+
+    locs.map(l=>`<option value="${l.id}">${esc(l.path||l.name)} 아래</option>`).join("");
+  openModal(`<h2>위치 추가</h2><p class="mh">큰 곳부터 만들고, 그 안에 세부 위치를 넣어요.</p>
+    <label class="fld">이름</label><input id="nl-name" placeholder="예: 김치냉장고, 2번 칸">
+    <label class="fld">어디에</label><select id="nl-parent">${opts}</select>
+    <div class="row"><button class="btn ghost" id="nl-cancel">취소</button><button class="btn" id="nl-save">추가</button></div>`);
+  $("#nl-cancel").onclick=closeModal;
+  $("#nl-save").onclick=async()=>{
+    const name=$("#nl-name").value.trim(); const parent=$("#nl-parent").value;
+    if(!name){ toast("이름을 입력해 주세요.",true); return; }
+    const btn=$("#nl-save"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+    const body={name}; if(parent) body.parent_id=parseInt(parent,10);
+    try{ await api("/locations",{method:"POST",body}); closeModal(); toast("위치를 추가했어요."); go("tree"); }
+    catch(e){ toast(e.message,true); btn.disabled=false; btn.textContent="추가"; }
+  };
+}
+
+function confirmDeleteLocation(id,name){
+  openModal(`<h2>'${esc(name)}' 삭제</h2>
+    <p class="mh">이 위치를 삭제할까요? 안에 물건이나 하위 위치가 있으면 삭제할 수 없어요.</p>
+    <div class="row"><button class="btn ghost" id="dl-cancel">취소</button>
+    <button class="btn" id="dl-ok" style="background:var(--danger)">삭제</button></div>`);
+  $("#dl-cancel").onclick=closeModal;
+  $("#dl-ok").onclick=async()=>{
+    const btn=$("#dl-ok"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+    try{ await api("/locations/"+id,{method:"DELETE"}); closeModal(); toast("위치를 삭제했어요."); go("tree"); }
+    catch(e){ closeModal(); toast(e.message,true); }  // backend returns 400 if not empty
+  };
+}
+
+function openConsume(id,name){
+  openModal(`<h2>'${esc(name)}' 꺼내기</h2><p class="mh">몇 개를 꺼낼까요? 활동 기록에 남아요.</p>
+    <label class="fld">수량</label><input id="ct-qty" type="number" min="1" value="1">
+    <div class="row"><button class="btn ghost" id="ct-cancel">취소</button><button class="btn" id="ct-ok">꺼내기</button></div>`);
+  $("#ct-cancel").onclick=closeModal;
+  $("#ct-ok").onclick=async()=>{
+    const qty=parseInt($("#ct-qty").value||"1",10);
+    const btn=$("#ct-ok"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+    try{
+      await api("/items/"+id+"/consume",{method:"POST",body:{quantity:qty>0?qty:1}});
+      closeModal(); toast(name+" "+qty+"개 꺼냄 · 기록됨");
+      go(current); // refresh current screen
+    }catch(e){ toast(e.message,true); btn.disabled=false; btn.textContent="꺼내기"; }
+  };
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+if(token()) enterApp(); else renderAuth();
+</script>
+</body>
+</html>
