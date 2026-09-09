@@ -30,6 +30,16 @@ def client():
 
     app.dependency_overrides[get_db] = db
     with TestClient(app) as c:
+
+        def audit(headers):
+            from backend.auth import current_user
+            from backend.main import activity
+
+            with sessions() as session:
+                user = current_user(headers["Authorization"].split(" ", 1)[1], session)
+                return activity(offset=0, limit=100, db=session, user=user)
+
+        c.audit = audit
         yield c
     app.dependency_overrides.clear()
     engine.dispose()

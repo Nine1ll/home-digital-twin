@@ -87,6 +87,29 @@ def consumption_forecast(events, today=None):
     return result
 
 
+def container_forecast(events):
+    durations = []
+    for event in events:
+        if event.action == "consume" and event.note.startswith("opened_at="):
+            opened = datetime.fromisoformat(event.note.split("=", 1)[1])
+            finished = event.created_at.replace(tzinfo=timezone.utc)
+            days = (finished - opened).total_seconds() / 86400
+            if days > 0:
+                durations.append(days)
+    average = (
+        sum(durations[-10:]) / len(durations[-10:]) if len(durations) >= 3 else None
+    )
+    return {
+        "method": "container_average" if average else "insufficient",
+        "daily_rate": round(1 / average, 3) if average else None,
+        "average_container_days": average,
+        "days_observed": len(durations),
+        "reason": f"개봉부터 다 쓸 때까지 완료한 {len(durations)}포장 기준"
+        if average
+        else "개봉 → 다 씀 기록이 3포장 이상 필요합니다. 한 컵을 정확한 부피로 환산하지 않습니다.",
+    }
+
+
 def recommendations(db, user, product_id):
     events = (
         db.query(Activity)

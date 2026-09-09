@@ -93,7 +93,7 @@ window.addEventListener("signed-out", () => {
 });
 function auth(mode = "login") {
   $("#app").innerHTML =
-    `<div class="auth-wrap"><div class="panel auth-card"><div class="brand">우리집<small>HOME DIGITAL TWIN</small></div><h1>${mode === "login" ? "내 집으로 들어가기" : "함께 쓸 집 만들기"}</h1><p class="muted">물건이 있는 자리부터, 다시 필요한 날까지.</p><form id="auth-form">${field("이메일", "email", "", "email", 'required autocomplete="email"')}${field("비밀번호", "password", "", "password", `required minlength="8" autocomplete="${mode === "login" ? "current-password" : "new-password"}"`)}${mode === "signup" ? field("우리집 이름", "household_name", "우리집", "text", 'required maxlength="100"') + field("가족 초대 코드 · 있는 경우", "invite_code", "", "text", 'autocomplete="off"') : ""}<button type="submit" class="primary">${mode === "login" ? "로그인" : "가입하기"}</button><p class="guide">서버가 쉬고 있었다면 첫 연결에 시간이 걸릴 수 있어요.</p></form><button id="switch-auth" class="quiet" style="width:100%;margin-top:16px">${mode === "login" ? "처음이신가요? 가입하기" : "이미 계정이 있나요? 로그인"}</button></div></div>`;
+    `<div class="auth-wrap"><div class="panel auth-card"><div class="brand">우리집<small>HOME DIGITAL TWIN</small></div><h1>${mode === "login" ? "내 집으로 들어가기" : "함께 쓸 집 만들기"}</h1><p class="muted">물건이 있는 자리부터, 다시 필요한 날까지.</p><form id="auth-form">${field("이메일", "email", "", "email", 'required autocomplete="email"')}${field("비밀번호", "password", "", "password", `required minlength="8" autocomplete="${mode === "login" ? "current-password" : "new-password"}"`)}${mode === "signup" ? field("표시 이름 · 예: 아빠, 딸", "display_name", "", "text", 'required maxlength="50"') + field("우리집 이름", "household_name", "우리집", "text", 'required maxlength="100"') + field("가족 초대 코드 · 있는 경우", "invite_code", "", "text", 'autocomplete="off"') : ""}<button type="submit" class="primary">${mode === "login" ? "로그인" : "가입하기"}</button><p class="guide">서버가 쉬고 있었다면 첫 연결에 시간이 걸릴 수 있어요.</p></form><button id="switch-auth" class="quiet" style="width:100%;margin-top:16px">${mode === "login" ? "처음이신가요? 가입하기" : "이미 계정이 있나요? 로그인"}</button></div></div>`;
   $("#switch-auth").onclick = () => auth(mode === "login" ? "signup" : "login");
   $("#auth-form").onsubmit = (e) => {
     e.preventDefault();
@@ -166,7 +166,7 @@ function shell() {
       )
       .join(
         "",
-      )}</nav><div class="bottom">공간과 물건을 연결합니다.<br><span class="muted">이동하거나 사용하면 기록해 주세요.</span></div></aside><main class="main"><div class="top"><strong>${esc(state.me.household_name)}</strong><div class="row"><span class="pill">${esc(state.me.email)}</span><button class="quiet small" id="logout">로그아웃</button></div></div><div id="view"></div></main></div>`;
+      )}</nav><div class="bottom">공간과 물건을 연결합니다.<br><span class="muted">이동하거나 사용하면 기록해 주세요.</span></div></aside><main class="main"><div class="top"><strong>${esc(state.me.household_name)}</strong><div class="row"><span class="pill">${esc(state.me.display_name)}</span><button class="quiet small" id="logout">로그아웃</button></div></div><div id="view"></div></main></div>`;
   document
     .querySelectorAll("[data-nav]")
     .forEach((b) => (b.onclick = () => navigate(b.dataset.nav)));
@@ -223,7 +223,7 @@ function badge(item) {
   return `<span class="badge ${days < 0 ? "red" : days <= state.me.expiry_days ? "warn" : ""}">${days < 0 ? `만료 ${-days}일` : days === 0 ? "오늘까지" : `D-${days}`}</span>`;
 }
 function itemHTML(it) {
-  return `<article class="item"><div class="row spread"><span class="item-name">${esc(it.name)} <span class="muted">${it.quantity}${esc(it.unit)}</span></span>${badge(it)}</div><small>${esc(it.location_path)}${it.expiry_date ? " · " + esc(it.expiry_date) : ""}</small><div class="actions"><button class="small" data-find="${it.location_id}">위치 보기</button><button class="small" data-action="${it.id}:consume">소비</button><button class="small" data-action="${it.id}:move">이동</button><button class="small quiet" data-action="${it.id}:discard">폐기</button><button class="small quiet" data-action="${it.id}:adjust">정정</button></div></article>`;
+  return `<article class="item"><div class="row spread"><span class="item-name">${esc(it.name)} <span class="muted">${it.quantity}${esc(it.unit)}${it.consumption_mode === "container" ? ` · 미개봉 ${it.unopened_quantity} / ${levelNames[it.remaining_level]}` : ""}</span></span>${badge(it)}</div><small>${esc(it.location_path)}${it.expiry_date ? " · " + esc(it.expiry_date) : ""}</small><div class="actions"><button class="small" data-find="${it.location_id}">위치 보기</button><button class="small" data-action="${it.id}:consume">소비</button><button class="small" data-action="${it.id}:move">이동</button><button class="small quiet" data-action="${it.id}:discard">폐기</button><button class="small quiet" data-action="${it.id}:adjust">정정</button></div></article>`;
 }
 function bindItems(root = $("#view")) {
   root.querySelectorAll("[data-find]").forEach(
@@ -270,6 +270,15 @@ function homeView() {
         "",
       )}${!children.length ? `<div class="empty map-empty">${parent ? "이 공간의 물건은 옆 목록에서 확인할 수 있어요.<br>서랍이나 수납 칸도 추가할 수 있어요." : "아직 집이 비어 있어요.<br>공간 추가로 첫 번째 방을 만들어 보세요."}</div>` : ""}<span class="map-label">${state.edit ? "끌어서 배치 · 크기는 공간 설정에서 조절" : "공간 배치도 · 실제 치수와 다를 수 있음"}</span></div><p class="guide">${state.edit ? "드래그를 놓으면 위치가 저장됩니다." : "방 → 가구 → 수납 칸 순서로 탐색할 수 있어요."}</p>${parent ? '<div class="row" style="margin-top:16px"><button id="space-settings" class="small">공간 설정</button><button id="register-here" class="small primary">여기에 물건 넣기</button></div>' : ""}</section><section class="panel"><div class="row spread"><h2>이곳의 물건</h2><span class="badge">${shown.length}개 재고 항목</span></div>${shown.length ? shown.map(itemHTML).join("") : empty("물건을 등록하면 이곳에 표시됩니다.")}<button id="refresh-home" class="quiet small">새로고침</button></section></div>`;
   $("#new-space").onclick = () => locationDialog();
+  $("#new-space").insertAdjacentHTML(
+    "beforebegin",
+    '<button id="group-space">수납칸 일괄 추가</button>' +
+      (!state.locations.length
+        ? '<button id="preset-space">집 프리셋</button>'
+        : ""),
+  );
+  $("#group-space").onclick = () => groupDialog();
+  if ($("#preset-space")) $("#preset-space").onclick = presetDialog;
   $("#edit-map").onclick = () => {
     state.edit = !state.edit;
     homeView();
@@ -371,6 +380,13 @@ function locationDialog(l = null) {
         "",
       )}</select></label><label class="field">상위 공간<select name="parent_id"><option value="">우리집 (최상위)</option>${options(l?.parent_id ?? state.parent, l?.id)}</select></label>${field("가로 위치 (0~19)", "x", l?.x ?? 0, "number", 'min="0" max="19" step="0.1" required')}${field("세로 위치 (0~19)", "y", l?.y ?? 0, "number", 'min="0" max="19" step="0.1" required')}${field("너비", "width", l?.width ?? 7, "number", 'min="0.5" max="20" step="0.1" required')}${field("높이", "height", l?.height ?? 6, "number", 'min="0.5" max="20" step="0.1" required')}</div><p class="guide">각 공간은 20 × 20 배치 영역입니다. 위치와 크기로 집의 구조를 표현하세요.</p><div class="row" style="margin-top:18px"><button class="primary" type="submit">저장</button>${l ? '<button class="danger" type="button" id="delete-space">공간 삭제</button>' : ""}</div></form>`,
   );
+  if (l) {
+    $("#location-form").insertAdjacentHTML(
+      "beforeend",
+      '<button type="button" id="copy-space">하위 공간까지 복제</button>',
+    );
+    $("#copy-space").onclick = () => groupDialog(l);
+  }
   $("#location-form").onsubmit = (e) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -408,6 +424,11 @@ function locationDialog(l = null) {
 function itemDialog(id, action) {
   const it = state.items.find((i) => i.id === id);
   if (!it) return;
+  if (
+    it.consumption_mode === "container" &&
+    (action === "consume" || action === "discard")
+  )
+    return portionDialog(it);
   modal(
     `${esc(it.name)} · ${actionNames[action]}`,
     `<p class="muted">${esc(it.location_path)} · 현재 ${it.quantity}${esc(it.unit)}</p><form id="action-form">${field(action === "adjust" ? "실제 확인한 수량" : "수량", "quantity", action === "adjust" ? it.quantity : 1, "number", `required min="${action === "adjust" ? 0 : 1}" max="${action === "adjust" ? 100000 : it.quantity}" step="1"`)}${action === "move" ? `<label class="field">옮길 위치<select name="destination_id" required><option value="">선택하세요</option>${options(null, it.location_id)}</select></label>` : ""}${action === "adjust" ? '<label class="field">정정 이유<textarea name="note" required maxlength="300" placeholder="예: 실제 수량을 다시 세어 보니 3개"></textarea></label>' : ""}<p class="guide">${action === "consume" ? "실제로 사용한 수량만 소비로 기록해 주세요. 위치만 바꾸면 이동을 선택하세요." : action === "discard" ? "폐기는 소비 예측의 사용량에 포함되지 않습니다." : "변경 내역은 활동 기록에 남습니다."}</p><button type="submit" class="primary">${actionNames[action]} 기록</button></form>`,
@@ -461,7 +482,7 @@ function searchView() {
 }
 function addView() {
   $("#view").innerHTML =
-    `<div class="heading"><div><h1>물건을 제자리에</h1><p class="muted">바코드나 사진으로 이름을 채우고, 위치를 확인해 주세요.</p></div></div><div class="grid"><section class="panel"><h2>물건 정보</h2><form id="item-form"><input type="hidden" name="product_id" value="">${field("물건 이름", "name", "", "text", 'required maxlength="150" list="product-names" autocomplete="off"')}<datalist id="product-names">${state.products.map((p) => `<option value="${esc(p.name)}">`).join("")}</datalist><label class="field">보관 위치<select name="location_id" required><option value="">위치 선택</option>${options(state.parent)}</select></label><div id="suggestions"></div><div class="form-grid">${field("수량", "quantity", 1, "number", 'required min="1" max="100000" step="1"')}${field("단위", "unit", "개", "text", 'required maxlength="20"')}${field("유통기한 · 선택", "expiry_date", "", "date")}${field("바코드 · 선택", "barcode", "", "text", 'inputmode="numeric" pattern="[0-9]{8,14}"')}</div><p class="guide">같은 상품·위치·유통기한이면 수량을 합칩니다. 바코드만으로 유통기한은 알 수 없으니 포장을 확인하세요.</p><button class="primary" type="submit" ${state.locations.length ? "" : "disabled"}>등록하기</button>${state.locations.length ? "" : '<p class="note">우리집 화면에서 보관할 공간을 먼저 만들어 주세요.</p>'}</form></section><aside><section class="panel section"><h2>바코드로 등록</h2><p class="muted">우리집에 등록한 상품을 먼저 찾습니다.</p><div class="row"><button id="camera-barcode">카메라 스캔</button><button id="manual-barcode">번호로 조회</button></div><p class="guide">처음 보는 식품은 Open Food Facts에서 조회합니다. 결과가 없으면 직접 이름을 입력할 수 있어요.</p></section><section class="panel"><h2>사진으로 등록</h2><p class="muted">바코드가 없는 물건도 사진으로 이름을 제안받을 수 있어요.</p><label class="field">물건 사진<input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><p class="guide">선택한 사진은 연결된 인식 서버로 전송됩니다. 등록 전 결과를 확인하세요.</p><button id="recognize-photo" ${state.me.photo_enabled ? "" : "disabled"}>사진 인식</button>${state.me.photo_enabled ? "" : '<p class="note">사진 인식 서버가 아직 연결되지 않았어요. 지금은 이름을 직접 입력해 주세요.</p>'}<div id="recognition-result"></div></section></aside></div>`;
+    `<div class="heading"><div><h1>물건을 제자리에</h1><p class="muted">바코드나 사진으로 이름을 채우고, 위치를 확인해 주세요.</p></div></div><div class="grid"><section class="panel"><h2>물건 정보</h2><form id="item-form"><input type="hidden" name="product_id" value="">${field("물건 이름", "name", "", "text", 'required maxlength="150" list="product-names" autocomplete="off"')}<datalist id="product-names">${state.products.map((p) => `<option value="${esc(p.name)}">`).join("")}</datalist><label class="field">보관 위치<select name="location_id" required><option value="">위치 선택</option>${options(state.parent)}</select></label><div id="suggestions"></div>${modeField()}<div class="form-grid">${field("포장 또는 개수", "quantity", 1, "number", 'required min="1" max="100000" step="1"')}${field("단위", "unit", "개", "text", 'required maxlength="20"')}${field("유통기한 · 선택", "expiry_date", "", "date")}${field("바코드 · 선택", "barcode", "", "text", 'inputmode="numeric" pattern="[0-9]{8,14}"')}</div><p class="guide">같은 상품·위치·유통기한이면 수량을 합칩니다. 바코드만으로 유통기한은 알 수 없으니 포장을 확인하세요.</p><button class="primary" type="submit" ${state.locations.length ? "" : "disabled"}>등록하기</button>${state.locations.length ? "" : '<p class="note">우리집 화면에서 보관할 공간을 먼저 만들어 주세요.</p>'}</form></section><aside><section class="panel section"><h2>바코드로 등록</h2><p class="muted">우리집에 등록한 상품을 먼저 찾습니다.</p><div class="row"><button id="camera-barcode">카메라 스캔</button><button id="manual-barcode">번호로 조회</button></div><p class="guide">처음 보는 식품은 Open Food Facts에서 조회합니다. 결과가 없으면 직접 이름을 입력할 수 있어요.</p></section><section class="panel"><h2>사진으로 등록</h2><p class="muted">바코드가 없는 물건도 사진으로 이름을 제안받을 수 있어요.</p><label class="field">물건 사진<input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><p class="guide">선택한 사진은 연결된 인식 서버로 전송됩니다. 등록 전 결과를 확인하세요.</p><button id="recognize-photo" ${state.me.photo_enabled ? "" : "disabled"}>사진 인식</button>${state.me.photo_enabled ? "" : '<p class="note">사진 인식 서버가 아직 연결되지 않았어요. 지금은 이름을 직접 입력해 주세요.</p>'}<div id="recognition-result"></div></section></aside></div>`;
   const form = $("#item-form");
   let suggestionRequest = 0;
   form.elements.name.oninput = async () => {
@@ -483,6 +504,7 @@ function addView() {
     if (!p) return;
     form.elements.unit.value = p.unit;
     form.elements.barcode.value = p.barcode || "";
+    form.elements.consumption_mode.value = p.consumption_mode;
     form.dataset.identifiedName = p.name;
     try {
       const rows = await api(`/products/${p.id}/locations`);
@@ -520,6 +542,7 @@ function addView() {
           barcode: d.barcode || null,
           location_id: Number(d.location_id),
           quantity: Number(d.quantity),
+          consumption_mode: d.consumption_mode,
           expiry_date: d.expiry_date || null,
         },
       });
@@ -561,7 +584,7 @@ function addView() {
       if (!form.isConnected) return;
       form.elements.name.value = r.name;
       form.elements.product_id.value = "";
-      form.elements.barcode.value = "";
+      // Preserve a successfully scanned barcode for confirmed photo/manual registration.
       form.elements.expiry_date.value = "";
       delete form.dataset.identifiedName;
       if (r.expiry_date && /^\d{4}-\d{2}-\d{2}$/.test(r.expiry_date))
@@ -586,6 +609,11 @@ async function lookupBarcode(code) {
   f.dataset.identifiedName = r.name || "";
   if (r.unit) f.elements.unit.value = r.unit;
   if (r.name) f.elements.name.dispatchEvent(new Event("input"));
+  if (!r.name) {
+    $("#recognition-result").innerHTML =
+      `<p class="note">${esc(r.message)} 사진을 선택하거나 왼쪽에 이름을 입력해 주세요.</p>`;
+    f.elements.name.focus();
+  }
   toast(
     r.name
       ? `${r.name} · ${r.source}에서 찾았어요. 정보를 확인하세요.`
@@ -603,7 +631,7 @@ async function scanBarcode() {
   );
   try {
     const formats = await BarcodeDetector.getSupportedFormats();
-    const supported = ["ean_13", "ean_8", "upc_a", "upc_e"].filter((f) =>
+    const supported = ["ean_13", "ean_8", "upc_a"].filter((f) =>
       formats.includes(f),
     );
     if (!supported.length)
@@ -650,7 +678,7 @@ function alertsView() {
   const { expiry, forecasts } = state.insights;
   const buys = forecasts.filter((f) => f.buy);
   $("#view").innerHTML =
-    `<div class="heading"><div><h1>먼저 확인할 것들</h1><p class="muted">유통기한과 남은 재고로 다음 행동을 준비하세요.</p></div><button id="refresh-alerts">새로고침</button></div><div class="alert-grid"><section class="panel"><h2>유통기한 · ${state.me.expiry_days}일 이내</h2>${expiry.length ? expiry.map(itemHTML).join("") : empty("임박하거나 만료된 물건이 없어요.")}</section><section class="panel"><h2>구매를 확인해 주세요</h2><p class="guide">위치별 재고를 합산하고, 이미 만료된 재고는 제외합니다.</p>${buys.length ? buys.map((f) => `<article class="item"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge warn">사용 가능 ${f.usable}${esc(f.unit)}</span></div><small>${f.days_until_empty !== null ? `현재 속도라면 약 ${f.days_until_empty}일 후 소진 예상` : `설정한 최소 재고 ${f.minimum}${esc(f.unit)} 이하입니다`}</small><button class="small" data-policy="${f.product_id}">구매 기준 설정</button></article>`).join("") : empty("현재 기준으로 구매할 물건이 없어요.")}</section></div><section class="panel" style="margin-top:22px"><h2>소비 예측</h2><p class="guide">기록되지 않은 소비는 알 수 없어요. 실제 재고를 확인하고, 차이가 있으면 수량 정정으로 맞춰 주세요. 알림은 앱을 열거나 새로고침할 때 갱신됩니다.</p>${forecasts.length ? forecasts.map((f) => `<article class="item"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge">${f.method === "ridge" ? "ML 예측" : f.method === "moving_average" ? "평균 소비량" : "기록 수집 중"}</span></div><small>${esc(f.reason)} · 관측 ${f.days_observed}일${f.daily_rate !== null ? ` · 하루 ${f.daily_rate}${esc(f.unit)}` : ""}</small>${f.validation_mae ? `<small>최근 7일 예측 오차(MAE): ML ${f.validation_mae.ridge} / 평균 ${f.validation_mae.baseline}</small>` : ""}<button class="small quiet" data-policy="${f.product_id}">상품·구매 기준 수정</button></article>`).join("") : empty("상품을 등록하고 소비를 기록하면 예측을 준비합니다.")}</section>`;
+    `<div class="heading"><div><h1>먼저 확인할 것들</h1><p class="muted">유통기한과 남은 재고로 다음 행동을 준비하세요.</p></div><button id="refresh-alerts">새로고침</button></div><div class="alert-grid"><section class="panel"><h2>유통기한 · ${state.me.expiry_days}일 이내</h2>${expiry.length ? expiry.map(itemHTML).join("") : empty("임박하거나 만료된 물건이 없어요.")}</section><section class="panel"><h2>구매를 확인해 주세요</h2><p class="guide">위치별 재고를 합산하고, 이미 만료된 재고는 제외합니다.</p>${buys.length ? buys.map((f) => `<article class="item"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge warn">사용 가능 ${f.usable}${esc(f.unit)}</span></div><small>${f.days_until_empty !== null ? `현재 속도라면 약 ${f.days_until_empty}일 후 소진 예상` : f.low_without_spare ? "개봉한 포장이 조금 남았고 미개봉 여분이 없어요" : `설정한 최소 재고 ${f.minimum}${esc(f.unit)} 이하입니다`}</small><button class="small" data-policy="${f.product_id}">구매 기준 설정</button></article>`).join("") : empty("현재 기준으로 구매할 물건이 없어요.")}</section></div><section class="panel" style="margin-top:22px"><h2>소비 예측</h2><p class="guide">기록되지 않은 소비는 알 수 없어요. 실제 재고를 확인하고, 차이가 있으면 수량 정정으로 맞춰 주세요. 알림은 앱을 열거나 새로고침할 때 갱신됩니다.</p>${forecasts.length ? forecasts.map((f) => `<article class="item"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge">${f.method === "ridge" ? "ML 예측" : f.method === "moving_average" ? "평균 소비량" : f.method === "container_average" ? "포장 사용기간" : "기록 수집 중"}</span></div><small>${esc(f.reason)} ${f.average_container_days !== undefined ? "" : `· 관측 ${f.days_observed}일`}${f.daily_rate !== null ? ` · 하루 ${f.daily_rate}${esc(f.unit)}` : ""}</small>${f.validation_mae ? `<small>최근 7일 예측 오차(MAE): ML ${f.validation_mae.ridge} / 평균 ${f.validation_mae.baseline}</small>` : ""}<button class="small quiet" data-policy="${f.product_id}">상품·구매 기준 수정</button></article>`).join("") : empty("상품을 등록하고 소비를 기록하면 예측을 준비합니다.")}</section>`;
   bindItems();
   $("#refresh-alerts").onclick = () =>
     reloadView().catch((e) => toast(e.message));
@@ -664,7 +692,7 @@ function productDialog(id) {
   const p = state.products.find((p) => p.id === id);
   modal(
     "상품과 구매 기준",
-    `<form id="policy-form">${field("상품 이름", "name", p.name, "text", 'required maxlength="150"')}${field("이 수량 이하이면 구매 안내", "minimum", p.minimum, "number", 'required min="0" max="100000" step="1"')}${field("예상 소진 며칠 전 구매 안내", "lead_days", p.lead_days, "number", 'required min="0" max="90" step="1"')}<button type="submit" class="primary">저장</button></form>`,
+    `<form id="policy-form">${modeField(p.consumption_mode)}${field("상품 이름", "name", p.name, "text", 'required maxlength="150"')}${field("이 수량 이하이면 구매 안내", "minimum", p.minimum, "number", 'required min="0" max="100000" step="1"')}${field("예상 소진 며칠 전 구매 안내", "lead_days", p.lead_days, "number", 'required min="0" max="90" step="1"')}<button type="submit" class="primary">저장</button></form>`,
   );
   $("#policy-form").onsubmit = (e) => {
     e.preventDefault();
@@ -675,6 +703,7 @@ function productDialog(id) {
         method: "PUT",
         body: {
           name: d.name,
+          consumption_mode: d.consumption_mode,
           minimum: Number(d.minimum),
           lead_days: Number(d.lead_days),
         },
@@ -686,7 +715,7 @@ function productDialog(id) {
 }
 function settingsView() {
   $("#view").innerHTML =
-    `<div class="heading"><div><h1>함께 관리하는 우리집</h1><p class="muted">가족을 초대하고, 관리 기준과 기록을 확인하세요.</p></div></div><div class="grid"><section class="panel"><h2>우리집 설정</h2><form id="settings-form">${field("우리집 이름", "name", state.me.household_name, "text", 'required maxlength="100"')}${field("유통기한 임박 기준 (일)", "expiry_days", state.me.expiry_days, "number", 'required min="0" max="90" step="1"')}<button type="submit" class="primary">저장</button></form></section><section class="panel"><h2>가족 초대</h2><p class="code">${esc(state.me.invite_code)}</p><p class="guide">가족이 가입할 때 이 코드를 입력하면 같은 집을 함께 관리합니다. 가족 구성원은 동일한 편집 권한을 가집니다.</p><button id="rotate-code" class="small" style="margin-top:16px">초대 코드 새로 만들기</button></section></div><section class="panel" style="margin-top:22px"><div class="row spread"><h2>활동 기록</h2><button class="small" id="reload-activity">새로고침</button></div><div id="activities"></div><button class="small" id="more-activity">더 보기</button></section>`;
+    `<div class="heading"><div><h1>함께 관리하는 우리집</h1><p class="muted">가족을 초대하고, 표시 이름과 관리 기준을 설정하세요.</p></div></div><div class="grid"><section class="panel"><h2>우리집 설정</h2><form id="settings-form">${field("내 표시 이름 · 예: 아빠, 딸", "display_name", state.me.display_name, "text", 'required maxlength="50"')}${field("우리집 이름", "name", state.me.household_name, "text", 'required maxlength="100"')}${field("유통기한 임박 기준 (일)", "expiry_days", state.me.expiry_days, "number", 'required min="0" max="90" step="1"')}<button type="submit" class="primary">저장</button></form></section><section class="panel"><h2>가족 초대</h2><p class="code">${esc(state.me.invite_code)}</p><p class="guide">가족이 가입할 때 이 코드를 입력하면 같은 집을 함께 관리합니다. 가족 구성원은 동일한 편집 권한을 가집니다.</p><button id="rotate-code" class="small" style="margin-top:16px">초대 코드 새로 만들기</button></section></div>`;
   $("#settings-form").onsubmit = (e) => {
     e.preventDefault();
     const f = e.currentTarget;
@@ -694,7 +723,11 @@ function settingsView() {
       const d = Object.fromEntries(new FormData(f));
       await api("/settings", {
         method: "PUT",
-        body: { name: d.name, expiry_days: Number(d.expiry_days) },
+        body: {
+          name: d.name,
+          display_name: d.display_name,
+          expiry_days: Number(d.expiry_days),
+        },
       });
       await reloadView();
       toast("설정을 저장했어요");
@@ -715,47 +748,102 @@ function settingsView() {
       }
     };
   };
-  let offset = 0;
-  const version = state.load;
-  async function load(clear = false) {
-    const target = $("#activities");
-    if (!target) return;
-    if (clear) {
-      offset = 0;
-      target.innerHTML = "";
-    }
-    const button = $("#more-activity");
-    button.disabled = true;
-    try {
-      const rows = await api(`/activity?offset=${offset}&limit=30`);
-      if (
-        state.view !== "settings" ||
-        state.load !== version ||
-        !target.isConnected
-      )
-        return;
-      target.insertAdjacentHTML(
-        "beforeend",
-        rows
-          .map(
-            (r) =>
-              `<article class="item"><div class="row"><span class="badge">${actionNames[r.action]}</span><strong>${esc(r.product_name)} · ${r.quantity}</strong></div><small>${esc(r.from_path)}${r.to_path ? " → " + esc(r.to_path) : ""}</small><small>${esc(r.note)} ${esc(r.actor)} · ${esc(r.created_at.replace("T", " ").slice(0, 16))} UTC</small></article>`,
-          )
-          .join(""),
-      );
-      if (!rows.length && offset === 0)
-        target.innerHTML = empty("아직 기록이 없어요.");
-      offset += rows.length;
-      button.hidden = rows.length < 30;
-    } catch (e) {
-      toast(e.message);
-    } finally {
-      button.disabled = false;
-    }
-  }
-  $("#more-activity").onclick = () => load();
-  $("#reload-activity").onclick = () => load(true);
-  load();
 }
+
+const levelNames = {
+  closed: "미개봉",
+  plenty: "개봉 · 넉넉함",
+  half: "개봉 · 절반",
+  low: "개봉 · 조금 남음",
+};
+function modeField(value = "count") {
+  return (
+    '<label class="field">소비 관리<select name="consumption_mode"><option value="count" ' +
+    (value === "count" ? "selected" : "") +
+    '>개수 · 달걀, 건전지</option><option value="container" ' +
+    (value === "container" ? "selected" : "") +
+    ">대략적인 잔량 · 우유, 세제</option></select></label>"
+  );
+}
+function portionDialog(it) {
+  const choices =
+    it.remaining_level === "closed"
+      ? [["open", "한 포장 개봉"]]
+      : [
+          ["cup", "한 컵 / 한 번 사용"],
+          ["plenty", "넉넉함"],
+          ["half", "절반쯤"],
+          ["low", "조금 남음"],
+          ["finish", "한 포장 다 씀"],
+          ["discard", "개봉한 포장 폐기"],
+        ];
+  modal(
+    esc(it.name) + " 잔량",
+    `<p>미개봉 ${it.unopened_quantity} · ${levelNames[it.remaining_level]}</p><p class="guide">한 번 사용은 정확한 양을 요구하지 않아요. 잔량은 직접 선택하고, 다 썼을 때 포장 수량이 1 줄어요. 같은 위치·유통기한에서는 한 포장씩 개봉합니다.</p><form id="portion-form"><label class="field">기록할 내용<select name="action">${choices.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></label><button class="primary">기록</button></form>`,
+  );
+  $("#portion-form").onsubmit = (e) => {
+    e.preventDefault();
+    submit(e.currentTarget, async () => {
+      await api("/items/" + it.id + "/portion", {
+        method: "POST",
+        body: { action: new FormData(e.target).get("action") },
+      });
+      $("#dialog").close();
+      await reloadView();
+    });
+  };
+}
+function groupDialog(source = null) {
+  modal(
+    source ? "공간 구조 복제" : "수납칸 일괄 생성",
+    `<p class="guide">${source ? "물건은 복제하지 않습니다. 복제된 공간은 같은 위치에 겹쳐 놓이므로 배치 편집으로 옮겨 주세요." : "현재 공간 안에 최대 16칸을 격자로 만듭니다."}</p><form id="group-form">${field("이름", "name", source ? source.name + " 복사" : "상부장", "text", 'required maxlength="80"')}${field("개수", "count", source ? 1 : 4, "number", 'required min="1" max="16"')}<button class="primary">만들기</button></form>`,
+  );
+  $("#group-form").onsubmit = (e) => {
+    e.preventDefault();
+    submit(e.currentTarget, async () => {
+      const d = Object.fromEntries(new FormData(e.target));
+      await api(
+        source ? "/locations/" + source.id + "/duplicate" : "/space-groups",
+        {
+          method: "POST",
+          body: {
+            name: d.name,
+            count: Number(d.count),
+            parent_id: state.parent,
+          },
+        },
+      );
+      $("#dialog").close();
+      await reloadView();
+    });
+  };
+}
+function presetDialog() {
+  const presets = [
+    ["studio", "원룸"],
+    ["one_half", "1.5룸"],
+    ["two", "투룸"],
+    ["three", "스리룸"],
+    ["three_one", "방 3 · 화장실 1 · 거실"],
+    ["three_two", "방 3 · 화장실 2 · 거실"],
+  ];
+  modal(
+    "우리집 시작하기",
+    `<p class="guide">실제 도면이 아닌 시작용 배치입니다. 만든 뒤 이름·크기·위치를 바꿀 수 있어요.</p><form id="preset-form"><label class="field">집 형태<select name="preset">${presets.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></label><label><input type="checkbox" name="furniture" checked> 기본 수납장과 냉장고도 만들기</label><button class="primary">집 만들기</button></form>`,
+  );
+  $("#preset-form").onsubmit = (e) => {
+    e.preventDefault();
+    submit(e.currentTarget, async () => {
+      const d = new FormData(e.target);
+      await api("/home-preset", {
+        method: "POST",
+        body: { preset: d.get("preset"), furniture: d.has("furniture") },
+      });
+      $("#dialog").close();
+      await reloadView();
+    });
+  };
+}
+
 if (token()) boot();
 else auth();

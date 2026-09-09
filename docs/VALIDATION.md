@@ -4,7 +4,7 @@
 
 ## 수행 결과
 
-- `pytest -q`: **16 passed**, 2 deprecation warnings.
+- `pytest -q`: **29 passed**, 2 deprecation warnings. 잔량 관리, 프리셋 6종, 공간 복제·일괄 생성 및 가구 격리, 표시 이름과 로그 비공개, 바코드 검증 숫자, 기존 SQLite 데이터 보존·마이그레이션 재실행, 포장 사용기간 예측 검증을 포함합니다.
 - `node --check frontend/app.js`: 통과.
 - `node --check frontend/api.js`: 통과.
 - FastAPI TestClient에서 정적 홈과 JavaScript 반환 확인.

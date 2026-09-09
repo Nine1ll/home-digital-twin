@@ -102,7 +102,7 @@ def test_partial_move_conserves_stock_and_logs(client, household):
     assert r.status_code == 200
     rows = client.get("/api/items", headers=h).json()
     assert sorted(i["quantity"] for i in rows) == [2, 2]
-    logs = client.get("/api/activity", headers=h).json()
+    logs = client.audit(h)
     assert (
         logs[0]["action"] == "move"
         and logs[0]["from_path"] == "주방 > 냉장고"
@@ -122,7 +122,7 @@ def test_overconsume_and_invalid_move_do_not_change_stock(client, household):
             f"/api/items/{a['id']}/actions", headers=h, json=body
         ).status_code in (404, 409)
     assert client.get("/api/items", headers=h).json()[0]["quantity"] == 4
-    assert len(client.get("/api/activity", headers=h).json()) == 1
+    assert len(client.audit(h)) == 1
 
 
 def test_discard_adjust_zero_preserve_history(client, household):
@@ -154,7 +154,7 @@ def test_discard_adjust_zero_preserve_history(client, household):
         client.get("/api/items?include_empty=true", headers=h).json()[0]["quantity"]
         == 0
     )
-    assert [l["action"] for l in client.get("/api/activity", headers=h).json()] == [
+    assert [l["action"] for l in client.audit(h)] == [
         "adjust",
         "discard",
         "receive",
@@ -191,9 +191,7 @@ def test_cycles_bounds_and_history_paths(client, household):
         client.get("/api/items", headers=h).json()[0]["location_path"]
         == "주방 > 새 냉장고"
     )
-    assert (
-        client.get("/api/activity", headers=h).json()[0]["to_path"] == "주방 > 냉장고"
-    )
+    assert client.audit(h)[0]["to_path"] == "주방 > 냉장고"
 
 
 def test_alerts_aggregate_stock_exclude_expired(client, household):
@@ -222,8 +220,8 @@ def test_alerts_aggregate_stock_exclude_expired(client, household):
 
 def test_barcode_local_lookup(client, household):
     h, _, shelf = household
-    a = receive(client, h, shelf, barcode="8801234567890")
-    r = client.get("/api/barcode/8801234567890", headers=h)
+    a = receive(client, h, shelf, barcode="8801234567893")
+    r = client.get("/api/barcode/8801234567893", headers=h)
     assert (
         r.json()["product_id"] == a["product_id"] and r.json()["source"] == "household"
     )
@@ -260,7 +258,7 @@ def test_static_app_and_validation(client, household):
     h, _, shelf = household
     assert client.get("/").status_code == 200
     assert client.get("/app.js").status_code == 200
-    assert client.get("/api/activity?limit=-1", headers=h).status_code == 422
+    assert client.get("/api/activity?limit=-1", headers=h).status_code == 404
     assert (
         client.post(
             "/api/items",

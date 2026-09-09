@@ -4,6 +4,9 @@ from pydantic import BaseModel, Field, EmailStr, field_validator, model_validato
 
 
 class Signup(BaseModel):
+    display_name: str = Field(
+        default="가족", min_length=1, max_length=50, pattern=r"\S"
+    )
     email: EmailStr
     password: str = Field(min_length=8, max_length=72)
     household_name: str = Field(default="우리집", min_length=1, max_length=100)
@@ -41,6 +44,7 @@ class LocationInput(BaseModel):
 
 
 class ItemInput(BaseModel):
+    consumption_mode: Literal["count", "container"] = "count"
     name: str = Field(min_length=1, max_length=150)
     product_id: int | None = None
     barcode: str | None = Field(default=None, pattern=r"^\d{8,14}$")
@@ -65,6 +69,7 @@ class ActionInput(BaseModel):
 
 
 class ProductInput(BaseModel):
+    consumption_mode: Literal["count", "container"] = "count"
     name: str = Field(min_length=1, max_length=150)
     minimum: int = Field(ge=0, le=100000)
     lead_days: int = Field(ge=0, le=90)
@@ -78,6 +83,9 @@ class ProductInput(BaseModel):
 
 
 class SettingsInput(BaseModel):
+    display_name: str | None = Field(
+        default=None, min_length=1, max_length=50, pattern=r"\S"
+    )
     name: str = Field(min_length=1, max_length=100)
     expiry_days: int = Field(ge=0, le=90)
 
@@ -87,3 +95,18 @@ class SettingsInput(BaseModel):
         if not v.strip():
             raise ValueError("집 이름을 입력하세요")
         return v.strip()
+
+
+class PortionInput(BaseModel):
+    action: Literal["open", "cup", "plenty", "half", "low", "finish", "discard"]
+
+
+class SpaceGroupInput(BaseModel):
+    name: str = Field(min_length=1, max_length=80, pattern=r"\S")
+    count: int = Field(default=1, ge=1, le=16)
+    parent_id: int | None = None
+
+
+class PresetInput(BaseModel):
+    preset: Literal["studio", "one_half", "two", "three", "three_one", "three_two"]
+    furniture: bool = True

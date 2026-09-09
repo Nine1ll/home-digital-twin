@@ -33,6 +33,7 @@ class User(Base):
         Integer, ForeignKey("households.id"), nullable=False, index=True
     )
     email = Column(String(254), unique=True, nullable=False)
+    display_name = Column(String(50), nullable=False, default="가족")
     password_hash = Column(String, nullable=False)
 
 
@@ -61,6 +62,7 @@ class Product(Base):
     normalized_name = Column(String(150), nullable=False)
     barcode = Column(String(32), nullable=True)
     unit = Column(String(20), nullable=False, default="개")
+    consumption_mode = Column(String(20), nullable=False, default="count")
     minimum = Column(Integer, nullable=False, default=2)
     lead_days = Column(Integer, nullable=False, default=3)
     __table_args__ = (
@@ -80,6 +82,8 @@ class Batch(Base):
     expiry = Column(String(10), nullable=False, default="")
     quantity = Column(Integer, nullable=False)
     version = Column(Integer, nullable=False, default=0)
+    remaining_level = Column(String(20), nullable=False, default="closed")
+    opened_at = Column(String(40), nullable=False, default="")
     __table_args__ = (
         UniqueConstraint("product_id", "location_id", "expiry"),
         CheckConstraint("quantity >= 0"),
