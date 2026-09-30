@@ -18,6 +18,9 @@ for (const f of files) {
   } catch (e) {
     failed++;
     console.log(`✗ ${f}\n    ${String(e.stack || e).split("\n").slice(0, 6).join("\n    ")}`);
+    // CI에서는 실패를 PR 화면의 주석으로도 남긴다(로그를 열지 않아도 보이게)
+    if (process.env.GITHUB_ACTIONS)
+      console.log(`::error title=E2E ${f}::${String(e.message || e).replace(/\r?\n/g, "%0A")}`);
   }
 }
 console.log(failed ? `\n${failed}/${files.length}개 실패` : `\n${files.length}개 모두 통과`);
