@@ -701,6 +701,34 @@ small {
   appearance: none;
   text-align: left;
 }
+.coords {
+  margin: -4px 0 12px;
+}
+.coords summary {
+  display: flex;
+  list-style: none;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.coords summary::-webkit-details-marker {
+  display: none;
+}
+.coords summary::after {
+  content: "›";
+  margin-left: 8px;
+  font-size: 18px;
+  transition: transform 0.15s;
+}
+.coords[open] summary {
+  margin-bottom: 6px;
+}
+.coords[open] summary::after {
+  transform: rotate(90deg);
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

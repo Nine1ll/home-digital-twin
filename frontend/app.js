@@ -456,22 +456,67 @@ function bindDrag(button) {
     }
   };
 }
-function locationDialog(l = null) {
+const kinds = { room: "방", furniture: "가구", storage: "수납 칸" };
+// 최상위는 방, 방 안은 가구, 그 안은 수납 칸
+function kindFor(parentId) {
+  const p = state.locations.find((l) => l.id === parentId);
+  return !p ? "room" : p.kind === "room" ? "furniture" : "storage";
+}
+// 형제 공간과 겹치지 않는 첫 빈자리(위→아래, 왼→오). 꽉 차면 점점 작게 찾는다
+function freeSpot(parentId, omit = null) {
+  const sibs = state.locations.filter(
+    (l) => l.parent_id === parentId && l.id !== omit,
+  );
+  for (const [w, h] of [
+    [8, 6],
+    [6, 4],
+    [4, 3],
+    [2, 2],
+  ])
+    for (let y = 0; y + h <= 20; y++)
+      for (let x = 0; x + w <= 20; x++)
+        if (
+          !sibs.some(
+            (s) =>
+              x < s.x + s.width &&
+              s.x < x + w &&
+              y < s.y + s.height &&
+              s.y < y + h,
+          )
+        )
+          return { x, y, width: w, height: h };
+  return { x: 0, y: 0, width: 4, height: 3 };
+}
+function locationDialog(l = null, rect = null) {
+  const parentId = l ? l.parent_id : state.parent,
+    kind = l?.kind ?? kindFor(parentId),
+    box = l ?? rect ?? freeSpot(parentId);
   modal(
-    l ? "공간 설정" : "새 공간",
-    `<form id="location-form">${field("공간 이름", "name", l?.name || "", "text", 'required maxlength="100"')}<div class="form-grid"><label class="field">종류<select name="kind">${[
-      ["room", "방"],
-      ["furniture", "가구"],
-      ["storage", "수납 칸"],
-    ]
+    l ? "공간 설정" : `새 ${kinds[kind]}`,
+    `<form id="location-form">${field("이름", "name", l?.name || "", "text", `required maxlength="100" placeholder="${{ room: "예: 주방", furniture: "예: 냉장고", storage: "예: 두 번째 칸" }[kind]}" ${l ? "" : "autofocus"}`)}<div class="form-grid"><label class="field">상위 공간<select name="parent_id"><option value="">우리집 (최상위)</option>${options(parentId, l?.id)}</select></label><label class="field">종류<select name="kind">${Object.entries(
+      kinds,
+    )
       .map(
         ([v, t]) =>
-          `<option value="${v}" ${l?.kind === v ? "selected" : ""}>${t}</option>`,
+          `<option value="${v}" ${kind === v ? "selected" : ""}>${t}</option>`,
       )
       .join(
         "",
-      )}</select></label><label class="field">상위 공간<select name="parent_id"><option value="">우리집 (최상위)</option>${options(l?.parent_id ?? state.parent, l?.id)}</select></label>${field("가로 위치 (0~19)", "x", l?.x ?? 0, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("세로 위치 (0~19)", "y", l?.y ?? 0, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("너비", "width", l?.width ?? 7, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}${field("높이", "height", l?.height ?? 6, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}</div><p class="guide" style="margin:0 0 12px">각 공간은 20 × 20 칸입니다. 위치는 배치도에서 끌어서 바꿀 수도 있어요.</p><button class="primary" type="submit">저장</button>${l ? '<button class="danger quiet" type="button" id="delete-space" style="width:100%;margin-top:8px">공간 삭제</button>' : ""}</form>`,
+      )}</select></label></div><details class="coords"><summary>위치·크기 직접 입력</summary><div class="form-grid">${field("가로 위치 (0~19)", "x", box.x, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("세로 위치 (0~19)", "y", box.y, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("너비", "width", box.width, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}${field("높이", "height", box.height, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}</div><p class="guide" style="margin:0">배치도의 ‘배치’에서 끌어서 옮기고, 모서리로 크기를 바꿀 수도 있어요.</p></details><button class="primary" type="submit">저장</button>${l ? '<button class="danger quiet" type="button" id="delete-space" style="width:100%;margin-top:8px">공간 삭제</button>' : ""}</form>`,
   );
+  const f = $("#location-form");
+  // 새 공간의 상위를 바꾸면 종류와 빈자리를 다시 고른다(그린 사각형은 유지)
+  if (!l)
+    f.elements.parent_id.onchange = () => {
+      const pid = f.elements.parent_id.value
+        ? Number(f.elements.parent_id.value)
+        : null;
+      f.elements.kind.value = kindFor(pid);
+      if (!rect)
+        for (const [k, v] of Object.entries(freeSpot(pid))) f.elements[k].value = v;
+    };
+  // 바텀시트가 뜬 뒤 이름 칸으로 (autofocus만으로는 모바일에서 무시될 수 있음)
+  if (!l) f.elements.name.focus();
   $("#location-form").onsubmit = (e) => {
     e.preventDefault();
     const form = e.currentTarget;
