@@ -60,11 +60,20 @@ const tabs = [
   ["settings", "설정"],
 ];
 let toastTimer, cameraStream, cameraTimer, refreshedAt = 0;
+// popover는 모달 시트와 같은 최상위 레이어라 시트가 열려 있어도 위에 보인다.
+// 다시 열어야 가장 나중 레이어로 올라온다. 미지원 브라우저는 class로 표시
 function toast(message) {
-  $("#toast").textContent = message;
-  $("#toast").classList.add("show");
+  const t = $("#toast");
+  t.textContent = message;
+  if (t.showPopover) {
+    if (t.matches(":popover-open")) t.hidePopover();
+    t.showPopover();
+  } else t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $("#toast").classList.remove("show"), 4000);
+  toastTimer = setTimeout(
+    () => (t.hidePopover ? t.hidePopover() : t.classList.remove("show")),
+    4000,
+  );
 }
 function errorHTML(e) {
   return `<div class="note error" role="alert">${esc(e.message)}</div>`;

@@ -985,6 +985,9 @@ dialog h2 {
 
 #toast {
   position: fixed;
+  inset: auto;
+  margin: 0;
+  border: 0;
   left: 50%;
   bottom: calc(80px + env(safe-area-inset-bottom));
   z-index: 20;
@@ -999,6 +1002,7 @@ dialog h2 {
   line-height: 1.5;
   display: none;
 }
+#toast:popover-open,
 #toast.show {
   display: block;
   animation: sheet-up 0.2s ease-out;
