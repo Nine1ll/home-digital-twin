@@ -43,6 +43,7 @@ const state = {
   insights: null,
   edit: false,
   query: "",
+  prefill: null,
   load: 0,
 };
 const actionNames = {
@@ -787,6 +788,12 @@ function addView() {
     };
   };
   if (canScan) $("#camera-barcode").onclick = scanBarcode;
+  // 장보기 목록의 '샀어요'에서 넘어오면 이름을 채우고 단위·추천 위치를 불러온다
+  if (state.prefill) {
+    form.elements.name.value = state.prefill.name;
+    form.elements.name.dispatchEvent(new Event("input"));
+    state.prefill = null;
+  }
   if (!photo)
     $("#photo-tile").onclick = () =>
       toast("사진 인식 서버가 아직 연결되지 않았어요. 이름을 직접 입력해 주세요.");
@@ -888,12 +895,74 @@ async function scanBarcode() {
       "카메라를 사용할 수 없습니다. 권한을 확인하거나 번호로 조회하세요.";
   }
 }
+// 장바구니 체크는 매장에서만 쓰는 기기별 표시라 localStorage에 둔다
+const SHOP_KEY = "twin_shop_checked";
+function loadChecked() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(SHOP_KEY)) || []);
+  } catch {
+    return new Set();
+  }
+}
+function saveChecked(set) {
+  try {
+    localStorage.setItem(SHOP_KEY, JSON.stringify([...set]));
+  } catch {}
+}
+function buyReason(f) {
+  return f.days_until_empty !== null
+    ? `지금 속도라면 약 ${f.days_until_empty}일 후 떨어져요`
+    : `최소 재고 ${f.minimum}${esc(f.unit)} 이하예요`;
+}
+// 폰에서는 공유 시트(카톡·문자), 지원하지 않으면 클립보드
+async function share(text, copied) {
+  try {
+    if (navigator.share) await navigator.share({ text });
+    else {
+      await navigator.clipboard.writeText(text);
+      toast(copied);
+    }
+  } catch (e) {
+    if (e.name !== "AbortError") toast("공유하지 못했어요. 직접 알려 주세요.");
+  }
+}
 function alertsView() {
   const { expiry, forecasts } = state.insights;
   const buys = forecasts.filter((f) => f.buy);
+  // 목록에서 빠진 상품(이미 등록함)의 체크는 정리한다
+  const checked = new Set(
+    [...loadChecked()].filter((id) => buys.some((f) => f.product_id === id)),
+  );
+  saveChecked(checked);
   $("#view").innerHTML =
-    `${heading("알림", "먼저 확인할 것들", '<button id="refresh-alerts" class="small">새로고침</button>')}<div class="alert-grid"><section class="panel"><h2>유통기한 · ${state.me.expiry_days}일 이내</h2>${expiry.length ? expiry.map(itemHTML).join("") : empty("임박하거나 만료된 물건이 없어요.")}</section><section class="panel"><h2>구매를 확인해 주세요</h2>${buys.length ? buys.map((f) => `<article class="card-row"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge warn">남은 ${f.usable}${esc(f.unit)}</span></div><small>${f.days_until_empty !== null ? `지금 속도라면 약 ${f.days_until_empty}일 후 떨어져요` : `최소 재고 ${f.minimum}${esc(f.unit)} 이하예요`}</small><button class="small" data-policy="${f.product_id}">구매 기준 설정</button></article>`).join("") : empty("지금은 살 것이 없어요.")}<p class="guide">위치별 재고를 합산하고, 이미 만료된 재고는 제외합니다.</p></section></div><section class="panel" style="margin-top:16px"><h2>소비 예측</h2>${forecasts.length ? forecasts.map((f) => `<article class="card-row"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge">${f.method === "ridge" ? "ML 예측" : f.method === "moving_average" ? "평균 소비량" : "기록 수집 중"}</span></div><small>${esc(f.reason)} · 관측 ${f.days_observed}일${f.daily_rate !== null ? ` · 하루 ${f.daily_rate}${esc(f.unit)}` : ""}</small>${f.validation_mae ? `<small>최근 7일 예측 오차(MAE): ML ${f.validation_mae.ridge} / 평균 ${f.validation_mae.baseline}</small>` : ""}<button class="small quiet" data-policy="${f.product_id}">상품·구매 기준 수정</button></article>`).join("") : empty("상품을 등록하고 사용을 기록하면 예측을 준비합니다.")}<p class="guide">기록되지 않은 사용은 알 수 없어요. 실제 재고와 다르면 수량 정정으로 맞춰 주세요.</p></section>`;
+    `${heading("알림", "먼저 확인할 것들", '<button id="refresh-alerts" class="small">새로고침</button>')}<div class="alert-grid"><section class="panel"><h2>유통기한 · ${state.me.expiry_days}일 이내</h2>${expiry.length ? expiry.map(itemHTML).join("") : empty("임박하거나 만료된 물건이 없어요.")}</section><section class="panel"><div class="row spread" style="margin-bottom:4px"><h2 style="margin:0">장보기 목록</h2>${buys.length ? '<button id="share-list" class="small">목록 보내기</button>' : ""}</div>${buys.length ? buys.map((f) => `<article class="shop-row"><label class="check"><input type="checkbox" data-check="${f.product_id}" ${checked.has(f.product_id) ? "checked" : ""}><span><strong>${esc(f.name)}</strong> <span class="badge warn">남은 ${f.usable}${esc(f.unit)}</span><small>${buyReason(f)}</small></span></label><button class="small" data-bought="${f.product_id}">샀어요</button></article>`).join("") : empty("지금은 살 것이 없어요.")}<p class="guide">장바구니에 담으면 체크하세요(이 기기에만 저장). 집에 와서 ‘샀어요’를 누르면 바로 등록할 수 있어요. 위치별 재고를 합산하고, 만료된 재고는 제외합니다.</p></section></div><section class="panel" style="margin-top:16px"><h2>소비 예측</h2>${forecasts.length ? forecasts.map((f) => `<article class="card-row"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge">${f.method === "ridge" ? "ML 예측" : f.method === "moving_average" ? "평균 소비량" : "기록 수집 중"}</span></div><small>${esc(f.reason)} · 관측 ${f.days_observed}일${f.daily_rate !== null ? ` · 하루 ${f.daily_rate}${esc(f.unit)}` : ""}</small>${f.validation_mae ? `<small>최근 7일 예측 오차(MAE): ML ${f.validation_mae.ridge} / 평균 ${f.validation_mae.baseline}</small>` : ""}<button class="small quiet" data-policy="${f.product_id}">상품·구매 기준 수정</button></article>`).join("") : empty("상품을 등록하고 사용을 기록하면 예측을 준비합니다.")}<p class="guide">기록되지 않은 사용은 알 수 없어요. 실제 재고와 다르면 수량 정정으로 맞춰 주세요.</p></section>`;
   bindItems();
+  document.querySelectorAll("[data-check]").forEach(
+    (c) =>
+      (c.onchange = () => {
+        const id = Number(c.dataset.check);
+        c.checked ? checked.add(id) : checked.delete(id);
+        saveChecked(checked);
+      }),
+  );
+  document.querySelectorAll("[data-bought]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        state.prefill = state.products.find(
+          (p) => p.id === Number(b.dataset.bought),
+        );
+        navigate("add");
+      }),
+  );
+  if (buys.length)
+    $("#share-list").onclick = () =>
+      share(
+        "장보기 목록\n" +
+          buys
+            .map((f) => `- ${f.name} (남은 ${f.usable}${f.unit})`)
+            .join("\n"),
+        "장보기 목록을 복사했어요",
+      );
   $("#refresh-alerts").onclick = () =>
     reloadView()
       .then(() => toast("최신 상태예요"))
@@ -945,19 +1014,11 @@ function settingsView() {
       toast("설정을 저장했어요");
     });
   };
-  // 폰에서는 공유 시트(카톡·문자), 지원하지 않으면 클립보드
-  $("#share-code").onclick = async () => {
-    const text = `우리집 앱 초대 코드: ${state.me.invite_code}\n${location.origin} 에서 가입할 때 입력하세요.`;
-    try {
-      if (navigator.share) await navigator.share({ text });
-      else {
-        await navigator.clipboard.writeText(text);
-        toast("초대 문구를 복사했어요");
-      }
-    } catch (e) {
-      if (e.name !== "AbortError") toast("공유하지 못했어요. 코드를 직접 알려 주세요.");
-    }
-  };
+  $("#share-code").onclick = () =>
+    share(
+      `우리집 앱 초대 코드: ${state.me.invite_code}\n${location.origin} 에서 가입할 때 입력하세요.`,
+      "초대 문구를 복사했어요",
+    );
   $("#logout").onclick = () => {
     state.load++;
     setToken(null);

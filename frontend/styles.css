@@ -668,6 +668,39 @@ small {
 .card-row button {
   margin-top: 10px;
 }
+.shop-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.shop-row:last-of-type {
+  border-bottom: 0;
+}
+.check {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.check input {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.check small {
+  display: block;
+  margin-top: 3px;
+}
+.check input:checked + span {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
 .empty {
   padding: 28px 10px;
   text-align: center;
