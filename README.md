@@ -99,6 +99,7 @@ python -m backend.seed --email demo@example.com
 - `frontend/styles.css`: 모바일/데스크톱 스타일
 - [설계 설명](docs/ARCHITECTURE.md)
 - [기능별 학습 순서](docs/LEARNING.md)
+- **[실제로 올리기: 직접 할 일 체크리스트](docs/GO_LIVE.md)**
 - [배포와 운영 범위](docs/DEPLOYMENT.md)
 - [검증 결과](docs/VALIDATION.md)
 
