@@ -12,6 +12,26 @@ const $ = (s) => document.querySelector(s),
           "'": "&#39;",
         })[c],
     );
+const svg = (d) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const icons = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  add: '<path d="M12 5v14M5 12h14"/>',
+  alerts:
+    '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  settings:
+    '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  close: '<path d="M18 6 6 18M6 6l12 12"/>',
+  scan: '<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/>',
+  hash: '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>',
+  camera:
+    '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
+  pin: '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+  move: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+};
 const state = {
   view: "home",
   parent: null,
@@ -27,17 +47,24 @@ const state = {
 };
 const actionNames = {
   receive: "등록",
-  consume: "소비",
+  consume: "사용",
   discard: "폐기",
   move: "이동",
   adjust: "수량 정정",
 };
+const tabs = [
+  ["home", "우리집"],
+  ["search", "찾기"],
+  ["add", "등록"],
+  ["alerts", "알림"],
+  ["settings", "설정"],
+];
 let toastTimer, cameraStream, cameraTimer;
 function toast(message) {
   $("#toast").textContent = message;
   $("#toast").classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $("#toast").classList.remove("show"), 4500);
+  toastTimer = setTimeout(() => $("#toast").classList.remove("show"), 4000);
 }
 function errorHTML(e) {
   return `<div class="note error" role="alert">${esc(e.message)}</div>`;
@@ -48,6 +75,17 @@ function empty(text) {
 function field(label, name, value = "", type = "text", extra = "") {
   return `<label class="field">${label}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 }
+// label로 감싸면 첫 버튼이 라벨 대상이 되므로 div + aria-labelledby를 쓴다
+function stepper(label, name, value, min, max) {
+  return `<div class="field"><span id="label-${name}">${label}</span><div class="stepper"><button type="button" data-step="-1" aria-label="${label} 줄이기">−</button><input name="${name}" type="number" inputmode="numeric" value="${value}" min="${min}" max="${max}" step="1" required aria-labelledby="label-${name}"><button type="button" data-step="1" aria-label="${label} 늘리기">+</button></div></div>`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-step]");
+  if (!b) return;
+  const input = b.parentElement.querySelector("input");
+  const next = (Number(input.value) || 0) + Number(b.dataset.step);
+  input.value = Math.min(Number(input.max), Math.max(Number(input.min), next));
+});
 function options(selected, omit = null) {
   return state.locations
     .filter((l) => l.id !== omit)
@@ -63,10 +101,23 @@ function stopCamera() {
   cameraStream = null;
 }
 $("#dialog").addEventListener("close", stopCamera);
+// 바깥(backdrop)을 누르면 닫는다. 시트 안쪽 여백 클릭은 무시
+$("#dialog").addEventListener("click", (e) => {
+  const d = e.currentTarget,
+    r = d.getBoundingClientRect();
+  if (
+    e.target === d &&
+    (e.clientY < r.top ||
+      e.clientY > r.bottom ||
+      e.clientX < r.left ||
+      e.clientX > r.right)
+  )
+    d.close();
+});
 function modal(title, html) {
   stopCamera();
   const d = $("#dialog");
-  d.innerHTML = `<div class="dialog-top"><h2>${title}</h2><button class="quiet" id="close-dialog" aria-label="닫기">✕</button></div>${html}`;
+  d.innerHTML = `<div class="grabber"></div><div class="dialog-top"><h2>${title}</h2><button class="icon-btn" id="close-dialog" aria-label="닫기">${svg(icons.close)}</button></div>${html}`;
   $("#close-dialog").onclick = () => d.close();
   if (!d.open) d.showModal();
 }
@@ -93,7 +144,7 @@ window.addEventListener("signed-out", () => {
 });
 function auth(mode = "login") {
   $("#app").innerHTML =
-    `<div class="auth-wrap"><div class="panel auth-card"><div class="brand">우리집<small>HOME DIGITAL TWIN</small></div><h1>${mode === "login" ? "내 집으로 들어가기" : "함께 쓸 집 만들기"}</h1><p class="muted">물건이 있는 자리부터, 다시 필요한 날까지.</p><form id="auth-form">${field("이메일", "email", "", "email", 'required autocomplete="email"')}${field("비밀번호", "password", "", "password", `required minlength="8" autocomplete="${mode === "login" ? "current-password" : "new-password"}"`)}${mode === "signup" ? field("우리집 이름", "household_name", "우리집", "text", 'required maxlength="100"') + field("가족 초대 코드 · 있는 경우", "invite_code", "", "text", 'autocomplete="off"') : ""}<button type="submit" class="primary">${mode === "login" ? "로그인" : "가입하기"}</button><p class="guide">서버가 쉬고 있었다면 첫 연결에 시간이 걸릴 수 있어요.</p></form><button id="switch-auth" class="quiet" style="width:100%;margin-top:16px">${mode === "login" ? "처음이신가요? 가입하기" : "이미 계정이 있나요? 로그인"}</button></div></div>`;
+    `<div class="auth-wrap"><div class="panel auth-card"><div class="brand">우리집<small>HOME DIGITAL TWIN</small></div><h1>${mode === "login" ? "내 집으로 들어가기" : "함께 쓸 집 만들기"}</h1><p class="muted">물건이 있는 자리부터, 다시 필요한 날까지.</p><form id="auth-form">${field("이메일", "email", "", "email", 'required autocomplete="email" inputmode="email"')}${field("비밀번호", "password", "", "password", `required minlength="8" autocomplete="${mode === "login" ? "current-password" : "new-password"}"`)}${mode === "signup" ? field("우리집 이름", "household_name", "우리집", "text", 'required maxlength="100"') + field("가족 초대 코드 · 있는 경우", "invite_code", "", "text", 'autocomplete="off" autocapitalize="characters"') : ""}<button type="submit" class="primary">${mode === "login" ? "로그인" : "가입하기"}</button><p class="guide">서버가 쉬고 있었다면 첫 연결에 시간이 걸릴 수 있어요.</p></form><button id="switch-auth" class="quiet">${mode === "login" ? "처음이신가요? 가입하기" : "이미 계정이 있나요? 로그인"}</button></div></div>`;
   $("#switch-auth").onclick = () => auth(mode === "login" ? "signup" : "login");
   $("#auth-form").onsubmit = (e) => {
     e.preventDefault();
@@ -135,7 +186,7 @@ async function refresh() {
 }
 async function boot() {
   $("#app").innerHTML =
-    '<div class="auth-wrap"><div class="panel"><h2>우리집을 불러오고 있어요</h2><p class="muted">서버와 연결 중입니다.</p></div></div>';
+    '<div class="auth-wrap"><div class="panel auth-card"><h2>우리집을 불러오고 있어요</h2><p class="muted">서버와 연결 중입니다.</p></div></div>';
   try {
     await refresh();
     shell();
@@ -143,7 +194,7 @@ async function boot() {
   } catch (e) {
     if (!token()) return auth();
     $("#app").innerHTML =
-      `<div class="auth-wrap"><div class="panel">${errorHTML(e)}<button id="retry">다시 연결</button><button id="exit">로그아웃</button></div></div>`;
+      `<div class="auth-wrap"><div class="panel auth-card">${errorHTML(e)}<div class="row" style="margin-top:14px"><button id="retry" class="primary grow">다시 연결</button><button id="exit">로그아웃</button></div></div></div>`;
     $("#retry").onclick = boot;
     $("#exit").onclick = () => {
       setToken(null);
@@ -151,41 +202,39 @@ async function boot() {
     };
   }
 }
+function alertCount() {
+  return (
+    state.insights.expiry.length +
+    state.insights.forecasts.filter((f) => f.buy).length
+  );
+}
 function shell() {
+  const n = alertCount();
   $("#app").innerHTML =
-    `<div class="layout"><aside class="sidebar"><div class="brand">우리집<small>HOME DIGITAL TWIN</small></div><nav>${[
-      ["home", "우리집"],
-      ["search", "물건 찾기"],
-      ["add", "등록"],
-      ["alerts", "알림"],
-      ["settings", "설정"],
-    ]
+    `<div class="layout"><nav class="tabbar" aria-label="주요 메뉴"><div class="brand">우리집<small>HOME DIGITAL TWIN</small></div>${tabs
       .map(
-        ([v, l], i) =>
-          `<button data-nav="${v}"><span class="navnum">0${i + 1}</span>${l}</button>`,
+        ([v, l]) =>
+          `<button class="tab tab-${v}" data-nav="${v}"><span class="ico">${svg(icons[v])}</span><span>${l}</span>${v === "alerts" && n ? `<span class="count" aria-label="확인할 알림 ${n}개">${n}</span>` : ""}</button>`,
       )
-      .join(
-        "",
-      )}</nav><div class="bottom">공간과 물건을 연결합니다.<br><span class="muted">이동하거나 사용하면 기록해 주세요.</span></div></aside><main class="main"><div class="top"><strong>${esc(state.me.household_name)}</strong><div class="row"><span class="pill">${esc(state.me.email)}</span><button class="quiet small" id="logout">로그아웃</button></div></div><div id="view"></div></main></div>`;
+      .join("")}</nav><main class="main"><div id="view"></div></main></div>`;
   document
     .querySelectorAll("[data-nav]")
     .forEach((b) => (b.onclick = () => navigate(b.dataset.nav)));
-  $("#logout").onclick = () => {
-    state.load++;
-    setToken(null);
-    stopCamera();
-    auth();
-  };
 }
 function navigate(view) {
   state.view = view;
   state.load++;
   render();
+  window.scrollTo(0, 0);
 }
 function render() {
-  document
-    .querySelectorAll("[data-nav]")
-    .forEach((b) => b.classList.toggle("active", b.dataset.nav === state.view));
+  document.querySelectorAll("[data-nav]").forEach((b) => {
+    const on = b.dataset.nav === state.view;
+    b.classList.toggle("active", on);
+    on
+      ? b.setAttribute("aria-current", "page")
+      : b.removeAttribute("aria-current");
+  });
   ({
     home: homeView,
     search: searchView,
@@ -198,6 +247,9 @@ async function reloadView() {
   await refresh();
   shell();
   render();
+}
+function heading(eyebrow, title, extra = "") {
+  return `<header class="heading"><div><p class="eyebrow">${eyebrow}</p><h1>${title}</h1></div>${extra}</header>`;
 }
 function descendants(id) {
   const set = new Set([id]);
@@ -223,23 +275,38 @@ function badge(item) {
   return `<span class="badge ${days < 0 ? "red" : days <= state.me.expiry_days ? "warn" : ""}">${days < 0 ? `만료 ${-days}일` : days === 0 ? "오늘까지" : `D-${days}`}</span>`;
 }
 function itemHTML(it) {
-  return `<article class="item"><div class="row spread"><span class="item-name">${esc(it.name)} <span class="muted">${it.quantity}${esc(it.unit)}</span></span>${badge(it)}</div><small>${esc(it.location_path)}${it.expiry_date ? " · " + esc(it.expiry_date) : ""}</small><div class="actions"><button class="small" data-find="${it.location_id}">위치 보기</button><button class="small" data-action="${it.id}:consume">소비</button><button class="small" data-action="${it.id}:move">이동</button><button class="small quiet" data-action="${it.id}:discard">폐기</button><button class="small quiet" data-action="${it.id}:adjust">정정</button></div></article>`;
+  return `<article class="item"><button class="item-main" data-item="${it.id}"><span class="item-title"><span class="name">${esc(it.name)}</span>${badge(it)}</span><span class="item-sub">${esc(it.location_path)}</span></button><span class="qty">${it.quantity}<small>${esc(it.unit)}</small></span><button class="use" data-action="${it.id}:consume" aria-label="${esc(it.name)} 사용 기록">사용</button></article>`;
 }
 function bindItems(root = $("#view")) {
-  root.querySelectorAll("[data-find]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        state.parent = Number(b.dataset.find);
-        state.highlight = state.parent;
-        state.edit = false;
-        navigate("home");
-      }),
-  );
+  root
+    .querySelectorAll("[data-item]")
+    .forEach((b) => (b.onclick = () => itemSheet(Number(b.dataset.item))));
   root.querySelectorAll("[data-action]").forEach(
     (b) =>
       (b.onclick = () => {
         const [id, action] = b.dataset.action.split(":");
         itemDialog(Number(id), action);
+      }),
+  );
+}
+function itemSheet(id) {
+  const it = state.items.find((i) => i.id === id);
+  if (!it) return;
+  modal(
+    esc(it.name),
+    `<p class="muted" style="margin:0">${esc(it.location_path)}</p><div class="row" style="margin-top:10px"><span class="qty">${it.quantity}<small>${esc(it.unit)}</small></span>${badge(it)}${it.expiry_date ? `<small>유통기한 ${esc(it.expiry_date)}</small>` : ""}</div><div class="sheet-actions"><button class="primary" data-sheet="consume">사용했어요</button><button data-sheet="move">${svg(icons.move)}옮기기</button><button data-sheet="find">${svg(icons.pin)}위치 보기</button><button data-sheet="adjust">${svg(icons.edit)}수량 정정</button><button class="danger" data-sheet="discard">${svg(icons.trash)}폐기</button></div>`,
+  );
+  document.querySelectorAll("[data-sheet]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (b.dataset.sheet !== "find") return itemDialog(id, b.dataset.sheet);
+        // 보관 칸이 들어 있는 상위 공간을 열고 그 칸을 강조한다
+        const l = state.locations.find((x) => x.id === it.location_id);
+        $("#dialog").close();
+        state.parent = l?.parent_id ?? null;
+        state.highlight = it.location_id;
+        state.edit = false;
+        navigate("home");
       }),
   );
 }
@@ -257,25 +324,28 @@ function homeView() {
     crumbs.unshift(c);
     c = state.locations.find((l) => l.id === c.parent_id);
   }
+  const expiring = state.insights.expiry.length;
   $("#view").innerHTML =
-    `<div class="heading"><div><h1>${parent ? esc(parent.name) : "집 안을 한눈에"}</h1><p class="muted">공간을 눌러 안에 있는 물건을 확인하세요.</p></div><div class="row"><button id="edit-map">${state.edit ? "배치 완료" : "배치 편집"}</button><button id="new-space" class="primary">+ 공간 추가</button></div></div><div class="stats"><div class="stat"><span>등록한 공간</span><b>${state.locations.length}</b></div><div class="stat"><span>보관 중인 상품</span><b>${new Set(state.items.map((i) => i.product_id)).size}</b></div><div class="stat"><span>확인할 유통기한</span><b>${state.insights.expiry.length}</b></div></div><div class="grid"><section class="panel"><div class="crumbs"><button data-parent="">우리집</button>${crumbs.map((l) => `<span>›</span><button data-parent="${l.id}">${esc(l.name)}</button>`).join("")}</div><div class="map ${state.edit ? "edit" : ""}" id="map">${children
+    `${heading(esc(state.me.household_name), parent ? esc(parent.name) : "집 안을 한눈에")}${parent ? "" : `<div class="stats"><div class="stat"><span>공간</span><b>${state.locations.length}</b></div><div class="stat"><span>보관 중인 상품</span><b>${new Set(state.items.map((i) => i.product_id)).size}</b></div><button class="stat ${expiring ? "warn" : ""}" data-go="alerts"><span>유통기한 확인</span><b>${expiring}</b></button></div>`}<div class="grid"><section class="panel"><div class="map-head"><nav class="crumbs" aria-label="공간 경로"><button data-parent="">우리집</button>${crumbs.map((l) => `<span>›</span><button data-parent="${l.id}">${esc(l.name)}</button>`).join("")}</nav><div class="row" style="flex-wrap:nowrap"><button id="edit-map" class="small ${state.edit ? "primary" : ""}">${state.edit ? "완료" : "배치"}</button><button id="new-space" class="small">${svg(icons.add)}공간</button></div></div><div class="map ${state.edit ? "edit" : ""}" id="map">${children
       .map((l) => {
         const set = descendants(l.id),
           count = state.items
             .filter((i) => set.has(i.location_id))
             .reduce((a, i) => a + i.quantity, 0);
-        return `<button class="space ${l.kind} ${state.highlight === l.id ? "found" : ""}" data-space="${l.id}" style="left:${l.x * 5}%;top:${l.y * 5}%;width:${l.width * 5}%;height:${l.height * 5}%" aria-label="${esc(l.name)}, 물건 ${count}개"><strong>${esc(l.name)}</strong><small>${count}개 보관</small></button>`;
+        return `<button class="space ${l.kind} ${state.highlight === l.id ? "found" : ""}" data-space="${l.id}" style="left:${l.x * 5}%;top:${l.y * 5}%;width:${l.width * 5}%;height:${l.height * 5}%" aria-label="${esc(l.name)}, 물건 ${count}개"><strong>${esc(l.name)}</strong><small>${count}개</small></button>`;
       })
       .join(
         "",
-      )}${!children.length ? `<div class="empty map-empty">${parent ? "이 공간의 물건은 옆 목록에서 확인할 수 있어요.<br>서랍이나 수납 칸도 추가할 수 있어요." : "아직 집이 비어 있어요.<br>공간 추가로 첫 번째 방을 만들어 보세요."}</div>` : ""}<span class="map-label">${state.edit ? "끌어서 배치 · 크기는 공간 설정에서 조절" : "공간 배치도 · 실제 치수와 다를 수 있음"}</span></div><p class="guide">${state.edit ? "드래그를 놓으면 위치가 저장됩니다." : "방 → 가구 → 수납 칸 순서로 탐색할 수 있어요."}</p>${parent ? '<div class="row" style="margin-top:16px"><button id="space-settings" class="small">공간 설정</button><button id="register-here" class="small primary">여기에 물건 넣기</button></div>' : ""}</section><section class="panel"><div class="row spread"><h2>이곳의 물건</h2><span class="badge">${shown.length}개 재고 항목</span></div>${shown.length ? shown.map(itemHTML).join("") : empty("물건을 등록하면 이곳에 표시됩니다.")}<button id="refresh-home" class="quiet small">새로고침</button></section></div>`;
+      )}${!children.length ? `<div class="empty map-empty">${parent ? "이 공간 안에 서랍이나 칸을<br>더 나눌 수 있어요." : "아직 집이 비어 있어요.<br>‘공간’을 눌러 첫 번째 방을 만들어 보세요."}</div>` : ""}<span class="map-label">${state.edit ? "끌어서 배치 · 탭하면 공간 설정" : "공간 배치도 · 실제 치수와 다를 수 있음"}</span></div><p class="guide">${state.edit ? "드래그를 놓으면 위치가 저장됩니다." : "공간을 누르면 안으로 들어갑니다. 방 → 가구 → 수납 칸"}</p>${parent ? `<div class="row" style="margin-top:14px"><button id="register-here" class="primary grow">${svg(icons.add)}여기에 물건 넣기</button><button id="space-settings">공간 설정</button></div>` : ""}</section><section class="panel list-panel"><div class="row spread"><h2 style="margin:0">${parent ? "이곳의 물건" : "모든 물건"}</h2><span class="muted">${shown.length}개 항목</span></div>${shown.length ? shown.map(itemHTML).join("") : empty("물건을 등록하면 이곳에 표시됩니다.")}</section></div>`;
+  $(".crumbs").scrollLeft = 1e4;
   $("#new-space").onclick = () => locationDialog();
   $("#edit-map").onclick = () => {
     state.edit = !state.edit;
     homeView();
   };
-  $("#refresh-home").onclick = () =>
-    reloadView().catch((e) => toast(e.message));
+  document
+    .querySelectorAll("[data-go]")
+    .forEach((b) => (b.onclick = () => navigate(b.dataset.go)));
   document.querySelectorAll("[data-parent]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -313,6 +383,9 @@ function bindDrag(button) {
   };
   button.onpointermove = (e) => {
     if (!start) return;
+    // 손가락 떨림은 탭으로 본다
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6 && !moved)
+      return;
     moved = true;
     const x = Math.max(
       0,
@@ -369,7 +442,7 @@ function locationDialog(l = null) {
       )
       .join(
         "",
-      )}</select></label><label class="field">상위 공간<select name="parent_id"><option value="">우리집 (최상위)</option>${options(l?.parent_id ?? state.parent, l?.id)}</select></label>${field("가로 위치 (0~19)", "x", l?.x ?? 0, "number", 'min="0" max="19" step="0.1" required')}${field("세로 위치 (0~19)", "y", l?.y ?? 0, "number", 'min="0" max="19" step="0.1" required')}${field("너비", "width", l?.width ?? 7, "number", 'min="0.5" max="20" step="0.1" required')}${field("높이", "height", l?.height ?? 6, "number", 'min="0.5" max="20" step="0.1" required')}</div><p class="guide">각 공간은 20 × 20 배치 영역입니다. 위치와 크기로 집의 구조를 표현하세요.</p><div class="row" style="margin-top:18px"><button class="primary" type="submit">저장</button>${l ? '<button class="danger" type="button" id="delete-space">공간 삭제</button>' : ""}</div></form>`,
+      )}</select></label><label class="field">상위 공간<select name="parent_id"><option value="">우리집 (최상위)</option>${options(l?.parent_id ?? state.parent, l?.id)}</select></label>${field("가로 위치 (0~19)", "x", l?.x ?? 0, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("세로 위치 (0~19)", "y", l?.y ?? 0, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("너비", "width", l?.width ?? 7, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}${field("높이", "height", l?.height ?? 6, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}</div><p class="guide" style="margin:0 0 12px">각 공간은 20 × 20 칸입니다. 위치는 배치도에서 끌어서 바꿀 수도 있어요.</p><button class="primary" type="submit">저장</button>${l ? '<button class="danger quiet" type="button" id="delete-space" style="width:100%;margin-top:8px">공간 삭제</button>' : ""}</form>`,
   );
   $("#location-form").onsubmit = (e) => {
     e.preventDefault();
@@ -390,8 +463,8 @@ function locationDialog(l = null) {
   if (l)
     $("#delete-space").onclick = () => {
       modal(
-        "공간 삭제 확인",
-        `<p>‘${esc(l.name)}’을 삭제할까요? 재고나 이력이 연결된 공간은 삭제할 수 없습니다.</p><button id="confirm-delete" class="danger">삭제하기</button>`,
+        "공간 삭제",
+        `<p>‘${esc(l.name)}’을 삭제할까요? 재고나 이력이 연결된 공간은 삭제할 수 없습니다.</p><button id="confirm-delete" class="danger sheet-cta">삭제하기</button>`,
       );
       $("#confirm-delete").onclick = async () => {
         try {
@@ -408,9 +481,10 @@ function locationDialog(l = null) {
 function itemDialog(id, action) {
   const it = state.items.find((i) => i.id === id);
   if (!it) return;
+  const adjust = action === "adjust";
   modal(
     `${esc(it.name)} · ${actionNames[action]}`,
-    `<p class="muted">${esc(it.location_path)} · 현재 ${it.quantity}${esc(it.unit)}</p><form id="action-form">${field(action === "adjust" ? "실제 확인한 수량" : "수량", "quantity", action === "adjust" ? it.quantity : 1, "number", `required min="${action === "adjust" ? 0 : 1}" max="${action === "adjust" ? 100000 : it.quantity}" step="1"`)}${action === "move" ? `<label class="field">옮길 위치<select name="destination_id" required><option value="">선택하세요</option>${options(null, it.location_id)}</select></label>` : ""}${action === "adjust" ? '<label class="field">정정 이유<textarea name="note" required maxlength="300" placeholder="예: 실제 수량을 다시 세어 보니 3개"></textarea></label>' : ""}<p class="guide">${action === "consume" ? "실제로 사용한 수량만 소비로 기록해 주세요. 위치만 바꾸면 이동을 선택하세요." : action === "discard" ? "폐기는 소비 예측의 사용량에 포함되지 않습니다." : "변경 내역은 활동 기록에 남습니다."}</p><button type="submit" class="primary">${actionNames[action]} 기록</button></form>`,
+    `<p class="muted">${esc(it.location_path)} · 현재 ${it.quantity}${esc(it.unit)}</p><form id="action-form">${stepper(adjust ? "실제 확인한 수량" : `수량 (${esc(it.unit)})`, "quantity", adjust ? it.quantity : 1, adjust ? 0 : 1, adjust ? 100000 : it.quantity)}${action === "move" ? `<label class="field">옮길 위치<select name="destination_id" required><option value="">선택하세요</option>${options(null, it.location_id)}</select></label>` : ""}${adjust ? '<label class="field">정정 이유<textarea name="note" required maxlength="300" placeholder="예: 실제 수량을 다시 세어 보니 3개"></textarea></label>' : ""}<p class="guide" style="margin:0 0 12px">${action === "consume" ? "실제로 사용한 수량만 기록해 주세요. 위치만 바꾸면 ‘옮기기’를 쓰세요." : action === "discard" ? "폐기는 소비 예측의 사용량에 포함되지 않습니다." : "변경 내역은 활동 기록에 남습니다."}</p><button type="submit" class="primary ${action === "discard" ? "danger" : ""}">${actionNames[action]} 기록</button></form>`,
   );
   $("#action-form").onsubmit = (e) => {
     e.preventDefault();
@@ -428,30 +502,32 @@ function itemDialog(id, action) {
       });
       $("#dialog").close();
       await reloadView();
-      toast("기록을 저장했어요");
+      toast(`${actionNames[action]} 기록 완료 · ${it.name}`);
     });
   };
 }
 function searchView() {
   $("#view").innerHTML =
-    `<div class="heading"><div><h1>무엇을 찾으세요?</h1><p class="muted">물건 이름으로 찾고, 보관한 자리까지 확인하세요.</p></div></div><form class="search" id="search-form"><input id="query" aria-label="물건 이름" placeholder="우유, 건전지, 여권…" value="${esc(state.query)}"><button class="primary">찾기</button></form><section class="panel" id="search-results"></section>`;
+    `${heading("물건 찾기", "무엇을 찾으세요?")}<form class="search-bar" id="search-form" role="search">${svg(icons.search)}<input id="query" type="search" enterkeyhint="search" autocomplete="off" aria-label="물건 이름" placeholder="우유, 건전지, 여권…" value="${esc(state.query)}"></form><section class="panel" id="search-results"></section>`;
   const draw = () => {
     const q = state.query.trim().toLocaleLowerCase();
     const rows = state.items.filter((i) =>
       i.name.toLocaleLowerCase().includes(q),
     );
-    $("#search-results").innerHTML = q
-      ? rows.length
-        ? `<h2>${rows.length}개 재고 항목을 찾았어요</h2>` +
-          rows.map(itemHTML).join("")
-        : empty("일치하는 물건이 없어요. 다른 이름으로 찾아보세요.")
-      : empty("이름을 입력하면 등록된 물건과 위치를 보여드려요.");
+    $("#search-results").innerHTML = rows.length
+      ? `<h2>${q ? `${rows.length}개를 찾았어요` : `전체 ${rows.length}개`}</h2>` +
+        rows.map(itemHTML).join("")
+      : empty(
+          q
+            ? "일치하는 물건이 없어요. 다른 이름으로 찾아보세요."
+            : "아직 등록한 물건이 없어요.",
+        );
     bindItems($("#search-results"));
   };
+  // 엔터(검색)는 키보드만 내린다. 결과는 입력하는 동안 이미 갱신된다
   $("#search-form").onsubmit = (e) => {
     e.preventDefault();
-    state.query = $("#query").value;
-    draw();
+    $("#query").blur();
   };
   $("#query").oninput = () => {
     state.query = $("#query").value;
@@ -460,8 +536,10 @@ function searchView() {
   draw();
 }
 function addView() {
+  const canScan = "BarcodeDetector" in window,
+    photo = state.me.photo_enabled;
   $("#view").innerHTML =
-    `<div class="heading"><div><h1>물건을 제자리에</h1><p class="muted">바코드나 사진으로 이름을 채우고, 위치를 확인해 주세요.</p></div></div><div class="grid"><section class="panel"><h2>물건 정보</h2><form id="item-form"><input type="hidden" name="product_id" value="">${field("물건 이름", "name", "", "text", 'required maxlength="150" list="product-names" autocomplete="off"')}<datalist id="product-names">${state.products.map((p) => `<option value="${esc(p.name)}">`).join("")}</datalist><label class="field">보관 위치<select name="location_id" required><option value="">위치 선택</option>${options(state.parent)}</select></label><div id="suggestions"></div><div class="form-grid">${field("수량", "quantity", 1, "number", 'required min="1" max="100000" step="1"')}${field("단위", "unit", "개", "text", 'required maxlength="20"')}${field("유통기한 · 선택", "expiry_date", "", "date")}${field("바코드 · 선택", "barcode", "", "text", 'inputmode="numeric" pattern="[0-9]{8,14}"')}</div><p class="guide">같은 상품·위치·유통기한이면 수량을 합칩니다. 바코드만으로 유통기한은 알 수 없으니 포장을 확인하세요.</p><button class="primary" type="submit" ${state.locations.length ? "" : "disabled"}>등록하기</button>${state.locations.length ? "" : '<p class="note">우리집 화면에서 보관할 공간을 먼저 만들어 주세요.</p>'}</form></section><aside><section class="panel section"><h2>바코드로 등록</h2><p class="muted">우리집에 등록한 상품을 먼저 찾습니다.</p><div class="row"><button id="camera-barcode">카메라 스캔</button><button id="manual-barcode">번호로 조회</button></div><p class="guide">처음 보는 식품은 Open Food Facts에서 조회합니다. 결과가 없으면 직접 이름을 입력할 수 있어요.</p></section><section class="panel"><h2>사진으로 등록</h2><p class="muted">바코드가 없는 물건도 사진으로 이름을 제안받을 수 있어요.</p><label class="field">물건 사진<input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><p class="guide">선택한 사진은 연결된 인식 서버로 전송됩니다. 등록 전 결과를 확인하세요.</p><button id="recognize-photo" ${state.me.photo_enabled ? "" : "disabled"}>사진 인식</button>${state.me.photo_enabled ? "" : '<p class="note">사진 인식 서버가 아직 연결되지 않았어요. 지금은 이름을 직접 입력해 주세요.</p>'}<div id="recognition-result"></div></section></aside></div>`;
+    `${heading("등록", "물건을 제자리에")}<div class="add-form"><div class="quick">${canScan ? `<button type="button" id="camera-barcode">${svg(icons.scan)}바코드 스캔</button>` : ""}<button type="button" id="manual-barcode">${svg(icons.hash)}바코드 번호</button><label id="photo-tile" ${photo ? "" : 'aria-disabled="true"'}>${svg(icons.camera)}사진 인식<input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" ${photo ? "" : "disabled"}></label></div><div id="recognition-result"></div><section class="panel" style="margin-top:12px"><form id="item-form"><input type="hidden" name="product_id" value="">${field("물건 이름", "name", "", "text", 'required maxlength="150" list="product-names" autocomplete="off" enterkeyhint="next"')}<datalist id="product-names">${state.products.map((p) => `<option value="${esc(p.name)}">`).join("")}</datalist><label class="field">보관 위치<select name="location_id" required><option value="">위치 선택</option>${options(state.parent)}</select></label><div id="suggestions"></div><div class="form-grid">${stepper("수량", "quantity", 1, 1, 100000)}${field("단위", "unit", "개", "text", 'required maxlength="20"')}</div>${field("유통기한 · 선택", "expiry_date", "", "date")}${field("바코드 · 선택", "barcode", "", "text", 'inputmode="numeric" pattern="[0-9]{8,14}" autocomplete="off"')}<p class="guide" style="margin:0 0 12px">같은 상품·위치·유통기한이면 수량을 합칩니다. 유통기한은 포장을 확인하세요.</p><button class="primary" type="submit" ${state.locations.length ? "" : "disabled"}>등록하기</button>${state.locations.length ? "" : '<p class="note">우리집 탭에서 보관할 공간을 먼저 만들어 주세요.</p>'}</form></section></div>`;
   const form = $("#item-form");
   let suggestionRequest = 0;
   form.elements.name.oninput = async () => {
@@ -492,18 +570,20 @@ function addView() {
           rows
             .map(
               (r) =>
-                `<button type="button" data-suggest="${r.location_id}">${esc(r.path)}<br><small>${esc(r.reason)}</small></button>`,
+                `<button type="button" data-suggest="${r.location_id}">${esc(r.path)}<small>${esc(r.reason)}</small></button>`,
             )
             .join("") +
           "</div>"
         : "";
-      document
-        .querySelectorAll("[data-suggest]")
-        .forEach(
-          (b) =>
-            (b.onclick = () =>
-              (form.elements.location_id.value = b.dataset.suggest)),
-        );
+      document.querySelectorAll("[data-suggest]").forEach(
+        (b) =>
+          (b.onclick = () => {
+            form.elements.location_id.value = b.dataset.suggest;
+            document
+              .querySelectorAll("[data-suggest]")
+              .forEach((x) => x.classList.toggle("picked", x === b));
+          }),
+      );
     } catch (e) {
       toast(e.message);
     }
@@ -525,14 +605,15 @@ function addView() {
       });
       state.parent = Number(d.location_id);
       await refresh();
+      shell();
       navigate("home");
-      toast("물건을 등록했어요");
+      toast(`등록 완료 · ${d.name}`);
     });
   };
   $("#manual-barcode").onclick = () => {
     modal(
       "바코드 번호 조회",
-      `<form id="barcode-form">${field("바코드 번호", "code", form.elements.barcode.value, "text", 'required inputmode="numeric" pattern="[0-9]{8,14}"')}<button type="submit" class="primary">상품 찾기</button></form>`,
+      `<form id="barcode-form">${field("바코드 번호", "code", form.elements.barcode.value, "text", 'required inputmode="numeric" pattern="[0-9]{8,14}" autocomplete="off"')}<button type="submit" class="primary">상품 찾기</button></form>`,
     );
     $("#barcode-form").onsubmit = (e) => {
       e.preventDefault();
@@ -543,15 +624,19 @@ function addView() {
       });
     };
   };
-  $("#camera-barcode").onclick = scanBarcode;
-  $("#recognize-photo").onclick = async () => {
-    const file = $("#photo").files[0];
-    if (!file) return toast("사진을 먼저 선택하세요");
+  if (canScan) $("#camera-barcode").onclick = scanBarcode;
+  if (!photo)
+    $("#photo-tile").onclick = () =>
+      toast("사진 인식 서버가 아직 연결되지 않았어요. 이름을 직접 입력해 주세요.");
+  // 사진을 고르면 바로 인식한다. 결과는 확인 후 등록
+  $("#photo").onchange = async (e) => {
+    const input = e.currentTarget,
+      file = input.files[0];
+    input.value = "";
+    if (!file) return;
     if (file.size > 5 * 1024 * 1024) return toast("5MB 이하 사진을 선택하세요");
-    const b = $("#recognize-photo");
-    b.disabled = true;
     $("#recognition-result").innerHTML =
-      '<p class="loading">사진을 확인하고 있어요…</p>';
+      '<p class="note loading">사진을 확인하고 있어요…</p>';
     try {
       const r = await api("/recognize", {
         method: "POST",
@@ -567,12 +652,10 @@ function addView() {
       if (r.expiry_date && /^\d{4}-\d{2}-\d{2}$/.test(r.expiry_date))
         form.elements.expiry_date.value = r.expiry_date;
       $("#recognition-result").innerHTML =
-        `<p class="note">이름 제안: ${esc(r.name)}<br>${esc(r.note)}<br>이름과 날짜를 확인한 뒤 등록해 주세요.</p>`;
+        `<p class="note">이름 제안: <b>${esc(r.name)}</b><br>${esc(r.note)}<br>이름과 날짜를 확인한 뒤 등록해 주세요.</p>`;
     } catch (e) {
       if ($("#recognition-result"))
         $("#recognition-result").innerHTML = errorHTML(e);
-    } finally {
-      b.disabled = false;
     }
   };
 }
@@ -593,10 +676,6 @@ async function lookupBarcode(code) {
   );
 }
 async function scanBarcode() {
-  if (!("BarcodeDetector" in window))
-    return toast(
-      "이 브라우저는 카메라 바코드 인식을 지원하지 않아요. 번호로 조회해 주세요.",
-    );
   modal(
     "바코드 스캔",
     '<video id="scanner" autoplay muted playsinline></video><p class="guide">포장의 바코드를 화면 안에 맞춰 주세요. 인식되면 카메라가 꺼집니다.</p><div id="scan-status" role="status"></div>',
@@ -627,6 +706,7 @@ async function scanBarcode() {
         const hits = await detector.detect(video);
         if (hits.length) {
           stopCamera();
+          navigator.vibrate?.(40);
           $("#scan-status").textContent = "상품 정보를 찾고 있어요…";
           await lookupBarcode(hits[0].rawValue);
           $("#dialog").close();
@@ -650,10 +730,12 @@ function alertsView() {
   const { expiry, forecasts } = state.insights;
   const buys = forecasts.filter((f) => f.buy);
   $("#view").innerHTML =
-    `<div class="heading"><div><h1>먼저 확인할 것들</h1><p class="muted">유통기한과 남은 재고로 다음 행동을 준비하세요.</p></div><button id="refresh-alerts">새로고침</button></div><div class="alert-grid"><section class="panel"><h2>유통기한 · ${state.me.expiry_days}일 이내</h2>${expiry.length ? expiry.map(itemHTML).join("") : empty("임박하거나 만료된 물건이 없어요.")}</section><section class="panel"><h2>구매를 확인해 주세요</h2><p class="guide">위치별 재고를 합산하고, 이미 만료된 재고는 제외합니다.</p>${buys.length ? buys.map((f) => `<article class="item"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge warn">사용 가능 ${f.usable}${esc(f.unit)}</span></div><small>${f.days_until_empty !== null ? `현재 속도라면 약 ${f.days_until_empty}일 후 소진 예상` : `설정한 최소 재고 ${f.minimum}${esc(f.unit)} 이하입니다`}</small><button class="small" data-policy="${f.product_id}">구매 기준 설정</button></article>`).join("") : empty("현재 기준으로 구매할 물건이 없어요.")}</section></div><section class="panel" style="margin-top:22px"><h2>소비 예측</h2><p class="guide">기록되지 않은 소비는 알 수 없어요. 실제 재고를 확인하고, 차이가 있으면 수량 정정으로 맞춰 주세요. 알림은 앱을 열거나 새로고침할 때 갱신됩니다.</p>${forecasts.length ? forecasts.map((f) => `<article class="item"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge">${f.method === "ridge" ? "ML 예측" : f.method === "moving_average" ? "평균 소비량" : "기록 수집 중"}</span></div><small>${esc(f.reason)} · 관측 ${f.days_observed}일${f.daily_rate !== null ? ` · 하루 ${f.daily_rate}${esc(f.unit)}` : ""}</small>${f.validation_mae ? `<small>최근 7일 예측 오차(MAE): ML ${f.validation_mae.ridge} / 평균 ${f.validation_mae.baseline}</small>` : ""}<button class="small quiet" data-policy="${f.product_id}">상품·구매 기준 수정</button></article>`).join("") : empty("상품을 등록하고 소비를 기록하면 예측을 준비합니다.")}</section>`;
+    `${heading("알림", "먼저 확인할 것들", '<button id="refresh-alerts" class="small">새로고침</button>')}<div class="alert-grid"><section class="panel"><h2>유통기한 · ${state.me.expiry_days}일 이내</h2>${expiry.length ? expiry.map(itemHTML).join("") : empty("임박하거나 만료된 물건이 없어요.")}</section><section class="panel"><h2>구매를 확인해 주세요</h2>${buys.length ? buys.map((f) => `<article class="card-row"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge warn">남은 ${f.usable}${esc(f.unit)}</span></div><small>${f.days_until_empty !== null ? `지금 속도라면 약 ${f.days_until_empty}일 후 떨어져요` : `최소 재고 ${f.minimum}${esc(f.unit)} 이하예요`}</small><button class="small" data-policy="${f.product_id}">구매 기준 설정</button></article>`).join("") : empty("지금은 살 것이 없어요.")}<p class="guide">위치별 재고를 합산하고, 이미 만료된 재고는 제외합니다.</p></section></div><section class="panel" style="margin-top:16px"><h2>소비 예측</h2>${forecasts.length ? forecasts.map((f) => `<article class="card-row"><div class="row spread"><strong>${esc(f.name)}</strong><span class="badge">${f.method === "ridge" ? "ML 예측" : f.method === "moving_average" ? "평균 소비량" : "기록 수집 중"}</span></div><small>${esc(f.reason)} · 관측 ${f.days_observed}일${f.daily_rate !== null ? ` · 하루 ${f.daily_rate}${esc(f.unit)}` : ""}</small>${f.validation_mae ? `<small>최근 7일 예측 오차(MAE): ML ${f.validation_mae.ridge} / 평균 ${f.validation_mae.baseline}</small>` : ""}<button class="small quiet" data-policy="${f.product_id}">상품·구매 기준 수정</button></article>`).join("") : empty("상품을 등록하고 사용을 기록하면 예측을 준비합니다.")}<p class="guide">기록되지 않은 사용은 알 수 없어요. 실제 재고와 다르면 수량 정정으로 맞춰 주세요.</p></section>`;
   bindItems();
   $("#refresh-alerts").onclick = () =>
-    reloadView().catch((e) => toast(e.message));
+    reloadView()
+      .then(() => toast("최신 상태예요"))
+      .catch((e) => toast(e.message));
   document
     .querySelectorAll("[data-policy]")
     .forEach(
@@ -664,7 +746,7 @@ function productDialog(id) {
   const p = state.products.find((p) => p.id === id);
   modal(
     "상품과 구매 기준",
-    `<form id="policy-form">${field("상품 이름", "name", p.name, "text", 'required maxlength="150"')}${field("이 수량 이하이면 구매 안내", "minimum", p.minimum, "number", 'required min="0" max="100000" step="1"')}${field("예상 소진 며칠 전 구매 안내", "lead_days", p.lead_days, "number", 'required min="0" max="90" step="1"')}<button type="submit" class="primary">저장</button></form>`,
+    `<form id="policy-form">${field("상품 이름", "name", p.name, "text", 'required maxlength="150"')}${stepper("이 수량 이하이면 구매 안내", "minimum", p.minimum, 0, 100000)}${stepper("예상 소진 며칠 전 구매 안내", "lead_days", p.lead_days, 0, 90)}<button type="submit" class="primary">저장</button></form>`,
   );
   $("#policy-form").onsubmit = (e) => {
     e.preventDefault();
@@ -681,12 +763,13 @@ function productDialog(id) {
       });
       $("#dialog").close();
       await reloadView();
+      toast("구매 기준을 저장했어요");
     });
   };
 }
 function settingsView() {
   $("#view").innerHTML =
-    `<div class="heading"><div><h1>함께 관리하는 우리집</h1><p class="muted">가족을 초대하고, 관리 기준과 기록을 확인하세요.</p></div></div><div class="grid"><section class="panel"><h2>우리집 설정</h2><form id="settings-form">${field("우리집 이름", "name", state.me.household_name, "text", 'required maxlength="100"')}${field("유통기한 임박 기준 (일)", "expiry_days", state.me.expiry_days, "number", 'required min="0" max="90" step="1"')}<button type="submit" class="primary">저장</button></form></section><section class="panel"><h2>가족 초대</h2><p class="code">${esc(state.me.invite_code)}</p><p class="guide">가족이 가입할 때 이 코드를 입력하면 같은 집을 함께 관리합니다. 가족 구성원은 동일한 편집 권한을 가집니다.</p><button id="rotate-code" class="small" style="margin-top:16px">초대 코드 새로 만들기</button></section></div><section class="panel" style="margin-top:22px"><div class="row spread"><h2>활동 기록</h2><button class="small" id="reload-activity">새로고침</button></div><div id="activities"></div><button class="small" id="more-activity">더 보기</button></section>`;
+    `${heading("설정", "함께 관리하는 우리집")}<div class="grid"><section class="panel"><h2>우리집 설정</h2><form id="settings-form">${field("우리집 이름", "name", state.me.household_name, "text", 'required maxlength="100"')}${stepper("유통기한 임박 기준 (일)", "expiry_days", state.me.expiry_days, 0, 90)}<button type="submit" class="primary">저장</button></form></section><section class="panel"><h2>가족 초대</h2><p class="code">${esc(state.me.invite_code)}</p><p class="guide">가족이 가입할 때 이 코드를 입력하면 같은 집을 함께 관리합니다. 모든 가족은 같은 편집 권한을 가집니다.</p><div class="row" style="margin-top:14px"><button id="share-code" class="primary grow">초대 코드 보내기</button><button id="rotate-code">새 코드</button></div></section></div><section class="panel" style="margin-top:16px"><div class="row spread"><h2 style="margin:0">활동 기록</h2><button class="small" id="reload-activity">새로고침</button></div><div id="activities"></div><button class="small" id="more-activity" style="width:100%;margin-top:8px">더 보기</button></section><section class="panel" style="margin-top:16px"><h2>계정</h2><p class="muted">${esc(state.me.email)}</p><button id="logout" class="danger" style="width:100%">로그아웃</button></section>`;
   $("#settings-form").onsubmit = (e) => {
     e.preventDefault();
     const f = e.currentTarget;
@@ -700,10 +783,29 @@ function settingsView() {
       toast("설정을 저장했어요");
     });
   };
+  // 폰에서는 공유 시트(카톡·문자), 지원하지 않으면 클립보드
+  $("#share-code").onclick = async () => {
+    const text = `우리집 앱 초대 코드: ${state.me.invite_code}\n${location.origin} 에서 가입할 때 입력하세요.`;
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else {
+        await navigator.clipboard.writeText(text);
+        toast("초대 문구를 복사했어요");
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") toast("공유하지 못했어요. 코드를 직접 알려 주세요.");
+    }
+  };
+  $("#logout").onclick = () => {
+    state.load++;
+    setToken(null);
+    stopCamera();
+    auth();
+  };
   $("#rotate-code").onclick = () => {
     modal(
       "초대 코드 변경",
-      '<p>기존 코드로는 더 이상 가입할 수 없게 됩니다. 이미 가입한 가족은 그대로 유지됩니다.</p><button class="primary" id="confirm-rotate">새 코드 만들기</button>',
+      '<p>기존 코드로는 더 이상 가입할 수 없게 됩니다. 이미 가입한 가족은 그대로 유지됩니다.</p><button class="primary sheet-cta" id="confirm-rotate">새 코드 만들기</button>',
     );
     $("#confirm-rotate").onclick = async () => {
       try {
@@ -739,7 +841,7 @@ function settingsView() {
         rows
           .map(
             (r) =>
-              `<article class="item"><div class="row"><span class="badge">${actionNames[r.action]}</span><strong>${esc(r.product_name)} · ${r.quantity}</strong></div><small>${esc(r.from_path)}${r.to_path ? " → " + esc(r.to_path) : ""}</small><small>${esc(r.note)} ${esc(r.actor)} · ${esc(r.created_at.replace("T", " ").slice(0, 16))} UTC</small></article>`,
+              `<article class="card-row"><div class="row"><span class="badge">${actionNames[r.action]}</span><strong>${esc(r.product_name)} · ${r.quantity}</strong></div><small>${esc(r.from_path)}${r.to_path ? " → " + esc(r.to_path) : ""}</small><small>${esc(r.note)} ${esc(r.actor)} · ${esc(r.created_at.replace("T", " ").slice(0, 16))} UTC</small></article>`,
           )
           .join(""),
       );
