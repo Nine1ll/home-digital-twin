@@ -31,6 +31,7 @@ const icons = {
   move: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  grid: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9.3h16M4 14.7h16"/>',
 };
 const state = {
   view: "home",
@@ -371,7 +372,7 @@ function homeView() {
   }
   const expiring = state.insights.expiry.length;
   $("#view").innerHTML =
-    `${heading(esc(state.me.household_name), parent ? esc(parent.name) : "집 안을 한눈에")}${parent ? "" : `<div class="stats"><div class="stat"><span>공간</span><b>${state.locations.length}</b></div><div class="stat"><span>보관 중인 상품</span><b>${new Set(state.items.map((i) => i.product_id)).size}</b></div><button class="stat ${expiring ? "warn" : ""}" data-go="alerts"><span>유통기한 확인</span><b>${expiring}</b></button></div>`}<div class="grid"><section class="panel"><div class="map-head"><nav class="crumbs" aria-label="공간 경로"><button data-parent="">우리집</button>${crumbs.map((l) => `<span>›</span><button data-parent="${l.id}">${esc(l.name)}</button>`).join("")}</nav><div class="row" style="flex-wrap:nowrap"><button id="edit-map" class="small ${state.edit ? "primary" : ""}">${state.edit ? "완료" : "배치"}</button><button id="new-space" class="small">${svg(icons.add)}공간</button></div></div><div class="map ${state.edit ? "edit" : ""}" id="map">${children
+    `${heading(esc(state.me.household_name), parent ? esc(parent.name) : "집 안을 한눈에")}${parent || !state.locations.length ? "" : `<div class="stats"><div class="stat"><span>공간</span><b>${state.locations.length}</b></div><div class="stat"><span>보관 중인 상품</span><b>${new Set(state.items.map((i) => i.product_id)).size}</b></div><button class="stat ${expiring ? "warn" : ""}" data-go="alerts"><span>유통기한 확인</span><b>${expiring}</b></button></div>`}<div class="grid"><section class="panel"><div class="map-head"><nav class="crumbs" aria-label="공간 경로"><button data-parent="">우리집</button>${crumbs.map((l) => `<span>›</span><button data-parent="${l.id}">${esc(l.name)}</button>`).join("")}</nav><div class="row" style="flex-wrap:nowrap"><button id="edit-map" class="small ${state.edit ? "primary" : ""}">${state.edit ? "완료" : "배치"}</button><button id="new-space" class="small">${svg(icons.add)}공간</button></div></div><div class="map ${state.edit ? "edit" : ""}" id="map">${children
       .map((l) => {
         const set = descendants(l.id),
           count = state.items
@@ -381,7 +382,7 @@ function homeView() {
       })
       .join(
         "",
-      )}${!children.length ? `<div class="empty map-empty">${state.edit ? "빈 곳을 손가락으로 끌어<br>공간을 그려 보세요." : parent ? "이 공간 안에 서랍이나 칸을<br>더 나눌 수 있어요." : "아직 집이 비어 있어요.<br>‘배치’를 누르고 빈 곳을 끌어 방을 그려 보세요."}</div>` : ""}<span class="map-label">${state.edit ? "편집 중" : "공간 배치도 · 실제 치수와 다를 수 있음"}</span></div><p class="guide">${state.edit ? "빈 곳을 끌면 새 공간 · 공간을 끌면 이동 · 오른쪽 아래 모서리를 끌면 크기 · 탭하면 설정" : "공간을 누르면 안으로 들어갑니다. 방 → 가구 → 수납 칸"}</p>${parent ? `<div class="row" style="margin-top:14px"><button id="register-here" class="primary grow">${svg(icons.add)}여기에 물건 넣기</button><button id="space-settings">공간 설정</button></div>` : ""}</section><section class="panel list-panel"><div class="row spread"><h2 style="margin:0">${parent ? "이곳의 물건" : "모든 물건"}</h2><span class="muted">${shown.length}개 항목</span></div>${shown.length ? shown.map(itemHTML).join("") : empty("물건을 등록하면 이곳에 표시됩니다.")}</section></div>`;
+      )}${!children.length ? `<div class="empty map-empty">${state.edit ? "빈 곳을 손가락으로 끌어<br>공간을 그려 보세요." : parent ? "이 공간 안에 서랍이나 칸을<br>더 나눌 수 있어요." : "아직 집이 비어 있어요.<br>아래 ‘빠른 시작’에서 방을 고르거나<br>‘배치’를 누르고 빈 곳을 끌어 그려 보세요."}</div>` : ""}<span class="map-label">${state.edit ? "편집 중" : "공간 배치도 · 실제 치수와 다를 수 있음"}</span></div>${!parent && !state.locations.length ? `<div class="starter"><h3>빠른 시작</h3><p class="guide" style="margin:0 0 12px">있는 방을 고르면 배치도에 나눠 놓아요. 위치와 크기는 나중에 바꿀 수 있어요.</p><div class="choices">${["주방", "거실", "침실", "작은방", "욕실", "현관", "다용도실", "베란다"].map((n, i) => `<label class="choice"><input type="checkbox" name="starter" value="${n}" ${i < 3 ? "checked" : ""}><span>${n}</span></label>`).join("")}</div><button id="starter-go" class="primary" style="width:100%;margin-top:12px">선택한 방 만들기</button></div>` : ""}<p class="guide">${state.edit ? "빈 곳을 끌면 새 공간 · 공간을 끌면 이동 · 오른쪽 아래 모서리를 끌면 크기 · 탭하면 설정" : "공간을 누르면 안으로 들어갑니다. 방 → 가구 → 수납 칸"}</p>${parent ? `<div class="row" style="margin-top:14px"><button id="register-here" class="primary grow">${svg(icons.add)}여기에 물건 넣기</button><button id="space-settings">공간 설정</button></div>` : ""}</section><section class="panel list-panel"><div class="row spread"><h2 style="margin:0">${parent ? "이곳의 물건" : "모든 물건"}</h2><span class="muted">${shown.length}개 항목</span></div>${shown.length ? shown.map(itemHTML).join("") : empty("물건을 등록하면 이곳에 표시됩니다.")}</section></div>`;
   $(".crumbs").scrollLeft = 1e4;
   $("#new-space").onclick = () => locationDialog();
   $("#edit-map").onclick = () => {
@@ -408,6 +409,37 @@ function homeView() {
         homeView();
       };
   });
+  if ($("#starter-go"))
+    $("#starter-go").onclick = async () => {
+      const names = [...document.querySelectorAll("[name=starter]:checked")].map(
+        (c) => c.value,
+      );
+      if (!names.length) return toast("방을 하나 이상 골라 주세요");
+      // 방 수에 맞춰 격자로 나눈다(4개면 2×2, 5개면 3×2)
+      const cols = Math.ceil(Math.sqrt(names.length)),
+        rows = Math.ceil(names.length / cols),
+        w = Math.floor((20 / cols) * 10) / 10,
+        h = Math.floor((20 / rows) * 10) / 10;
+      $("#starter-go").disabled = true;
+      try {
+        await createSpaces(
+          names.map((name, i) => ({
+            name,
+            kind: "room",
+            parent_id: null,
+            x: (i % cols) * w,
+            y: Math.floor(i / cols) * h,
+            width: w,
+            height: h,
+          })),
+        );
+        await reloadView();
+        toast(`방 ${names.length}개를 만들었어요. 방을 눌러 가구를 넣어 보세요.`);
+      } catch (e) {
+        toast(e.message);
+        await reloadView();
+      }
+    };
   if (parent) {
     $("#space-settings").onclick = () => locationDialog(parent);
     $("#register-here").onclick = () => navigate("add");
@@ -566,6 +598,46 @@ function freeSpot(parentId, omit = null) {
           return { x, y, width: w, height: h };
   return { x: 0, y: 0, width: 4, height: 3 };
 }
+// 여러 공간을 차례로 만든다(한 번에 받는 API가 없으므로)
+async function createSpaces(specs) {
+  for (const s of specs) await api("/locations", { method: "POST", body: s });
+}
+const canSplit = (l) =>
+  l && l.kind !== "room" && !state.locations.some((x) => x.parent_id === l.id);
+// 냉장고 선반·서랍장처럼 같은 칸이 반복되는 가구를 한 번에 나눈다
+function splitDialog(l) {
+  modal(
+    `${esc(l.name)} 칸 나누기`,
+    `<form id="split-form">${stepper("칸 수", "count", 4, 2, 12)}<div class="field"><span>방향</span><div class="choices two"><label class="choice"><input type="radio" name="dir" value="rows" checked><span>위아래로 · 선반</span></label><label class="choice"><input type="radio" name="dir" value="cols"><span>좌우로 · 칸막이</span></label></div></div>${field("이름", "prefix", "칸", "text", 'required maxlength="90"')}<p class="guide" style="margin:0 0 12px">‘칸 1’, ‘칸 2’…로 만들어요. 1번이 맨 위(왼쪽)입니다. 이름과 크기는 나중에 바꿀 수 있어요.</p><button type="submit" class="primary">나누기</button></form>`,
+  );
+  $("#split-form").onsubmit = (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    submit(form, async () => {
+      const d = Object.fromEntries(new FormData(form)),
+        n = Number(d.count),
+        at = (i) => (i === n ? 20 : Math.round((i * 200) / n) / 10);
+      await createSpaces(
+        Array.from({ length: n }, (_, i) => {
+          const [a, size] = [at(i), Math.round((at(i + 1) - at(i)) * 10) / 10];
+          return {
+            name: `${d.prefix.trim()} ${i + 1}`,
+            kind: "storage",
+            parent_id: l.id,
+            ...(d.dir === "rows"
+              ? { x: 0, y: a, width: 20, height: size }
+              : { x: a, y: 0, width: size, height: 20 }),
+          };
+        }),
+      );
+      $("#dialog").close();
+      state.parent = l.id;
+      state.edit = false;
+      await reloadView();
+      toast(`${n}칸으로 나눴어요 · ${l.name}`);
+    });
+  };
+}
 function locationDialog(l = null, rect = null) {
   const parentId = l ? l.parent_id : state.parent,
     kind = l?.kind ?? kindFor(parentId),
@@ -581,7 +653,7 @@ function locationDialog(l = null, rect = null) {
       )
       .join(
         "",
-      )}</select></label></div><details class="coords"><summary>위치·크기 직접 입력</summary><div class="form-grid">${field("가로 위치 (0~19)", "x", box.x, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("세로 위치 (0~19)", "y", box.y, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("너비", "width", box.width, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}${field("높이", "height", box.height, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}</div><p class="guide" style="margin:0">배치도의 ‘배치’에서 끌어서 옮기고, 모서리로 크기를 바꿀 수도 있어요.</p></details><button class="primary" type="submit">저장</button>${l ? '<button class="danger quiet" type="button" id="delete-space" style="width:100%;margin-top:8px">공간 삭제</button>' : ""}</form>`,
+      )}</select></label></div><details class="coords"><summary>위치·크기 직접 입력</summary><div class="form-grid">${field("가로 위치 (0~19)", "x", box.x, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("세로 위치 (0~19)", "y", box.y, "number", 'min="0" max="19" step="0.1" required inputmode="decimal"')}${field("너비", "width", box.width, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}${field("높이", "height", box.height, "number", 'min="0.5" max="20" step="0.1" required inputmode="decimal"')}</div><p class="guide" style="margin:0">배치도의 ‘배치’에서 끌어서 옮기고, 모서리로 크기를 바꿀 수도 있어요.</p></details><button class="primary" type="submit">저장</button>${canSplit(l) ? `<button type="button" id="split-space" style="width:100%;margin-top:8px">${svg(icons.grid)}칸 나누기</button>` : ""}${l ? '<button class="danger quiet" type="button" id="delete-space" style="width:100%;margin-top:8px">공간 삭제</button>' : ""}</form>`,
   );
   const f = $("#location-form");
   // 새 공간의 상위를 바꾸면 종류와 빈자리를 다시 고른다(그린 사각형은 유지)
@@ -612,6 +684,7 @@ function locationDialog(l = null, rect = null) {
       toast("공간을 저장했어요");
     });
   };
+  if (canSplit(l)) $("#split-space").onclick = () => splitDialog(l);
   if (l)
     $("#delete-space").onclick = () => {
       modal(

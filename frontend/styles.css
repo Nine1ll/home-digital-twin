@@ -792,6 +792,55 @@ small {
 .coords[open] summary::after {
   transform: rotate(90deg);
 }
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.choices.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.choice {
+  position: relative;
+}
+.choice input {
+  position: absolute;
+  opacity: 0;
+}
+.choice span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--raised);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.choices.two .choice span {
+  border-radius: 12px;
+}
+.choice input:checked + span {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent);
+}
+.choice input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.starter {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.starter h3 {
+  margin: 0 0 4px;
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
