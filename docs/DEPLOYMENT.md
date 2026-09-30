@@ -17,7 +17,23 @@
 
 DB 비밀번호는 Git에 넣지 않습니다. Render의 임시 로컬 디스크에 SQLite 파일을 두면 재배포 시 없어질 수 있으므로 영속 PostgreSQL 또는 명시적으로 구성한 영속 볼륨을 사용하세요. 설정 파일만 제공하며 리소스를 생성하거나 요금을 발생시키는 배포를 자동 수행하지 않습니다.
 
-## Docker
+## 세 서버로 실행 (Docker Compose, 집 서버 추천)
+
+화면(web, nginx) → API(api) → 예측(ml)을 한 대에서 따로 띄웁니다. 구조 설명은 [서버 분리](ARCHITECTURE.md#서버-분리).
+
+```bash
+cp .env.example .env
+# .env: APP_ENV=production, SECRET_KEY와 ML_TOKEN에 각각 무작위 값
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+docker compose up -d --build
+# http://localhost:8080  (HTTPS는 앞단에 Cloudflare Tunnel 등을 둔다)
+```
+
+- 밖으로 열리는 포트는 web(8080) 하나입니다. api와 ml은 compose 내부망에서만 보입니다.
+- `docker compose stop ml`로 장애를 흉내 내면 예측만 ‘예측 일시 중단’이 되고 나머지는 동작합니다.
+- 화면만 Cloudflare Pages·Netlify 같은 정적 호스팅에 올릴 수도 있습니다. 이때는 배포 시 `frontend/config.js`를 `export const API_BASE = "https://API주소";`로 덮어쓰고, API의 `CORS_ORIGINS`에 화면 주소를 넣습니다.
+
+## Docker (한 서버)
 
 ```bash
 docker build -t home-digital-twin .
@@ -40,11 +56,12 @@ Docker 기본 DB는 `/data/twin.db`입니다. `.env`에 `DATABASE_URL=sqlite:///
 3. 발송을 예약합니다. 서버 시간대 기준이니 한국 시간 오전 9시는 서버가 UTC면 `0 0 * * *`입니다.
    ```bash
    # 집 서버(Docker): 호스트 crontab
-   0 9 * * * docker exec home-digital-twin python -m backend.push
+   0 9 * * * cd /path/to/app && docker compose exec -T api python -m backend.push
+   # 한 서버 Docker(아래)라면: docker exec home-digital-twin python -m backend.push
    # 직접 실행
    0 9 * * * cd /path/to/app && .venv/bin/python -m backend.push
    ```
-   Render는 같은 저장소로 Cron Job을 만들고 명령을 `python -m backend.push`, 환경변수는 웹 서비스와 같게 둡니다.
+   Render는 `render.yaml`로 API와 비공개 예측 서버(pserv, 유료 인스턴스가 필요할 수 있음)를 만듭니다. 같은 저장소로 Cron Job을 만들고 명령을 `python -m backend.push`, 환경변수는 웹 서비스와 같게 둡니다.
 
 보안: 서버가 구독 주소로 직접 요청을 보내므로, 알려진 푸시 서비스(FCM, Mozilla, Apple, Windows) 주소만 받습니다. 만료된 구독(404/410)은 발송 중 자동 삭제되고, 로그아웃하면 그 기기의 구독도 해지됩니다.
 

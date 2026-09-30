@@ -19,3 +19,11 @@ jobs:
       - run: node --check frontend/app.js
       - run: node --check frontend/api.js
       - run: node --check frontend/sw.js
+  images:
+    # 로컬에 Docker가 없어도 세 서비스 이미지와 compose 설정이 깨지지 않았는지 확인한다
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t twin-api .
+      - run: docker build -f ml/Dockerfile -t twin-ml .
+      - run: cp .env.example .env && ML_TOKEN=ci docker compose config --quiet

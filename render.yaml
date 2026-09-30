@@ -1,3 +1,5 @@
+# API(+화면)와 예측 서버 두 서비스. 예측 서버는 인터넷에 공개하지 않는 비공개 서비스다.
+# 비공개 서비스(pserv)는 Render 유료 인스턴스가 필요할 수 있다. 없으면 예측만 ‘일시 중단’으로 동작한다.
 services:
   - type: web
     name: home-digital-twin
@@ -14,3 +16,25 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
+      - key: ML_URL
+        fromService:
+          type: pserv
+          name: home-digital-twin-ml
+          property: hostport
+      - key: ML_TOKEN
+        fromService:
+          type: pserv
+          name: home-digital-twin-ml
+          envVarKey: ML_TOKEN
+  - type: pserv
+    name: home-digital-twin-ml
+    runtime: python
+    buildCommand: pip install -r ml/requirements.txt
+    startCommand: uvicorn ml.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: APP_ENV
+        value: production
+      - key: ML_TOKEN
+        generateValue: true

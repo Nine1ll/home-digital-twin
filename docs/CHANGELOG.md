@@ -6,6 +6,15 @@
 
 목표: 구조를 배우기 위해 한 프로세스였던 서비스를 화면(web), API(api), 예측(ml) 세 서버로 나눕니다. 설계 이유와 실패 시나리오는 `docs/ARCHITECTURE.md`의 ‘서버 분리’에 정리했습니다.
 
+### build: Docker Compose로 세 서버 묶기 (3단계)
+
+- `docker-compose.yml`: web(nginx) · api · ml. 밖으로 여는 포트는 web(8080) 하나. nginx가 `/api`를 api로 넘기므로 브라우저는 주소 하나만 보고 CORS가 필요 없습니다.
+- ml에는 `ML_TOKEN`과 `APP_ENV`만 넘깁니다(최소 권한). `ML_TOKEN`이 없으면 compose가 시작 전에 멈춥니다.
+- `deploy/nginx.conf`: 업로드 6MB, 사진 인식용 120초 대기, `sw.js`·`config.js`는 캐시하지 않음.
+- `ml/Dockerfile` 추가. `render.yaml`: API + 비공개 예측 서버(pserv), 두 서버가 `ML_TOKEN`을 공유. Render가 주는 `host:port` 주소에 `http://`를 붙여 씁니다.
+- CI에 이미지 빌드(api, ml)와 `docker compose config` 검증 작업 추가. 로컬에는 Docker 데몬이 없어 **컨테이너 실행은 이 작업에서 검증하지 않았습니다.** 같은 구성을 프로세스 3개로 띄워 E2E로 확인했습니다.
+- 문서: `ARCHITECTURE.md`에 ‘서버 분리’(나눈 기준, 계약, 장애 표, 서비스 인증, 측정값), `LEARNING.md`에 7장 실습, `DEPLOYMENT.md`에 compose 실행법.
+
 ### feat(ml): 소비 예측을 별도 ML 서버로 (2단계)
 
 - `ml/`: DB에 접근하지 않고 계산만 하는 FastAPI 서버. `POST /forecast`가 `{today, products: {id: [이벤트]}}`를 받아 상품별 예측을 돌려줍니다. scikit-learn은 이 서버만 설치합니다(`ml/requirements.txt`).

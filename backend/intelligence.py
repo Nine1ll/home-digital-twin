@@ -7,8 +7,10 @@ from .models import Activity, Product, Batch
 from .inventory import batch_dict
 
 # 화면 한 번에 한 번만 호출한다(상품마다 호출하면 N+1). 테스트는 이 객체를 바꿔 끼운다
+ML_URL = os.getenv("ML_URL", "http://localhost:8001")
 ml = httpx.Client(
-    base_url=os.getenv("ML_URL", "http://localhost:8001"),
+    # Render는 비공개 서비스 주소를 host:port로만 준다
+    base_url=ML_URL if "://" in ML_URL else "http://" + ML_URL,
     timeout=3,
     headers={"X-Internal-Token": os.getenv("ML_TOKEN", "")},
 )

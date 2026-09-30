@@ -1,0 +1,41 @@
+# 집 서버 한 대에서 세 서비스를 따로 띄운다: 화면(web) → API(api) → 예측(ml)
+#   docker compose up -d --build     → http://localhost:8080
+#   docker compose logs -f api       → 한 서비스의 로그만 보기
+#   docker compose stop ml           → ML 장애 실험(예측만 ‘일시 중단’)
+services:
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      ML_URL: http://ml:8001
+      DATABASE_URL: sqlite:////data/twin.db
+    volumes:
+      - twin-data:/data
+    depends_on:
+      - ml
+    restart: unless-stopped
+    # 포트를 열지 않는다. 밖에서는 web(nginx)을 거쳐서만 들어온다
+
+  ml:
+    build:
+      context: .
+      dockerfile: ml/Dockerfile
+    # 최소 권한: API의 비밀키·푸시 키는 주지 않고 공유 토큰만 준다(.env에서 읽음)
+    environment:
+      ML_TOKEN: ${ML_TOKEN:?.env에 ML_TOKEN을 설정하세요}
+      APP_ENV: ${APP_ENV:-production}
+    restart: unless-stopped
+
+volumes:
+  twin-data:
