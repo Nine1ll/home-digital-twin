@@ -21,7 +21,7 @@ DB 비밀번호는 Git에 넣지 않습니다. Render의 임시 로컬 디스크
 
 ```bash
 docker build -t home-digital-twin .
-docker run --rm -p 8000:8000 --env-file .env -v twin-data:/data home-digital-twin
+docker run -d --name home-digital-twin --restart unless-stopped -p 8000:8000 --env-file .env -v twin-data:/data home-digital-twin
 ```
 
 Docker 기본 DB는 `/data/twin.db`입니다. `.env`에 `DATABASE_URL=sqlite:///./twin.db`가 있으면 이 기본값을 덮어쓰므로 Docker에서는 `sqlite:////data/twin.db`로 바꾸세요. 이미지에는 앱과 프론트만 포함하고 테스트용 계정/데이터를 포함하지 않습니다. 컨테이너 구동 자체는 이 작업 환경에서 검증하지 않았습니다.
