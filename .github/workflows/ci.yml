@@ -18,3 +18,4 @@ jobs:
       - run: pytest -q
       - run: node --check frontend/app.js
       - run: node --check frontend/api.js
+      - run: node --check frontend/sw.js
