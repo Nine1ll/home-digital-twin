@@ -266,6 +266,16 @@ document.addEventListener("visibilitychange", () => {
     .then(() => scrollTo(0, y))
     .catch(() => {});
 });
+// 서버는 UTC로 저장한다. SQLite는 시간대 표시를 잃으므로 없으면 UTC로 본다
+function localTime(iso) {
+  const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
+  return d.toLocaleString("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 function heading(eyebrow, title, extra = "") {
   return `<header class="heading"><div><p class="eyebrow">${eyebrow}</p><h1>${title}</h1></div>${extra}</header>`;
 }
@@ -859,7 +869,7 @@ function settingsView() {
         rows
           .map(
             (r) =>
-              `<article class="card-row"><div class="row"><span class="badge">${actionNames[r.action]}</span><strong>${esc(r.product_name)} · ${r.quantity}</strong></div><small>${esc(r.from_path)}${r.to_path ? " → " + esc(r.to_path) : ""}</small><small>${esc(r.note)} ${esc(r.actor)} · ${esc(r.created_at.replace("T", " ").slice(0, 16))} UTC</small></article>`,
+              `<article class="card-row"><div class="row"><span class="badge">${actionNames[r.action]}</span><strong>${esc(r.product_name)} · ${r.quantity}</strong></div><small>${esc(r.from_path)}${r.to_path ? " → " + esc(r.to_path) : ""}</small><small>${esc(r.note)} ${esc(r.actor)} · ${localTime(r.created_at)}</small></article>`,
           )
           .join(""),
       );
