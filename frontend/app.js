@@ -59,7 +59,7 @@ const tabs = [
   ["alerts", "알림"],
   ["settings", "설정"],
 ];
-let toastTimer, cameraStream, cameraTimer;
+let toastTimer, cameraStream, cameraTimer, refreshedAt = 0;
 function toast(message) {
   $("#toast").textContent = message;
   $("#toast").classList.add("show");
@@ -183,6 +183,7 @@ async function refresh() {
     api("/insights"),
   ]);
   Object.assign(state, { me, locations, items, products, insights });
+  refreshedAt = Date.now();
 }
 async function boot() {
   $("#app").innerHTML =
@@ -248,6 +249,23 @@ async function reloadView() {
   shell();
   render();
 }
+// 홈 화면 앱은 메모리에 오래 남는다. 다시 열면 가족이 바꾼 재고와 알림을 가져온다
+// (입력 중인 등록 화면·시트는 건드리지 않는다)
+document.addEventListener("visibilitychange", () => {
+  if (
+    document.hidden ||
+    !state.me ||
+    !token() ||
+    $("#dialog").open ||
+    state.view === "add" ||
+    Date.now() - refreshedAt < 30000
+  )
+    return;
+  const y = scrollY;
+  reloadView()
+    .then(() => scrollTo(0, y))
+    .catch(() => {});
+});
 function heading(eyebrow, title, extra = "") {
   return `<header class="heading"><div><p class="eyebrow">${eyebrow}</p><h1>${title}</h1></div>${extra}</header>`;
 }
