@@ -1,0 +1,16 @@
+{
+  "name": "우리집 · Home Digital Twin",
+  "short_name": "우리집",
+  "description": "우리 집의 공간과 물건을 연결하고, 유통기한과 구매 시점을 확인하세요.",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f1eb",
+  "theme_color": "#1b5147",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
