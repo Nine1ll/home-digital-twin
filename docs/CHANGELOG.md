@@ -6,6 +6,13 @@
 
 목표: 구조를 배우기 위해 한 프로세스였던 서비스를 화면(web), API(api), 예측(ml) 세 서버로 나눕니다. 설계 이유와 실패 시나리오는 `docs/ARCHITECTURE.md`의 ‘서버 분리’에 정리했습니다.
 
+### feat(ops): 자동 백업과 안전한 복원
+
+- `python -m backend.backup`: SQLite를 `BACKUP_DIR`(compose에서는 호스트 `./backups`)에 `twin-날짜-시각.db`로 저장하고 최근 N개(기본 7)만 남깁니다. 서버가 쓰는 도중에도 `sqlite3` backup API로 일관된 사본을 만듭니다(표준 라이브러리, 의존성 없음).
+- `--restore 파일이름`: 백업 내용을 운영 DB **안으로** 옮깁니다. 복원 직전 DB는 `pre-restore-…db`로 남깁니다. 백업 폴더 밖 경로는 받지 않습니다.
+- **발견한 함정**: 처음 문서화하려던 `docker compose cp`로 DB 파일을 덮어쓰는 방식은 파일 소유자가 호스트 사용자로 바뀌어, 복원 후 **읽기는 되고 쓰기는 500 에러**가 났습니다(컨테이너는 `appuser`로 실행). 그래서 복원도 컨테이너 안에서 앱 권한으로 하도록 만들었습니다.
+- 검증: `pytest` 31 passed(보관 개수, 백업본 내용, 파일 교체 없이 복원, 복원 전 DB 보존, 경로 거부). Docker로 백업 → 공간 추가 → API 정지 → 복원 → 재시작 → 공간 수 원복 + 쓰기 200 + 파일 소유자 `appuser` 확인.
+
 ### build: Docker Compose로 세 서버 묶기 (3단계)
 
 - `docker-compose.yml`: web(nginx) · api · ml. 밖으로 여는 포트는 web(8080) 하나. nginx가 `/api`를 api로 넘기므로 브라우저는 주소 하나만 보고 CORS가 필요 없습니다.

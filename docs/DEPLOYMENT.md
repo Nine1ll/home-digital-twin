@@ -42,6 +42,36 @@ docker run -d --name home-digital-twin --restart unless-stopped -p 8000:8000 --e
 
 Docker 기본 DB는 `/data/twin.db`입니다. `.env`에 `DATABASE_URL=sqlite:///./twin.db`가 있으면 이 기본값을 덮어쓰므로 Docker에서는 `sqlite:////data/twin.db`로 바꾸세요. 이미지에는 앱과 프론트만 포함하고 테스트용 계정/데이터를 포함하지 않습니다. 컨테이너 구동 자체는 이 작업 환경에서 검증하지 않았습니다.
 
+## 백업과 복원
+
+SQLite DB를 매일 `./backups`(호스트 폴더)에 날짜별로 저장하고 최근 7개를 보관합니다. DB와 같은 디스크에만 두면 디스크 고장 때 함께 잃으므로, 이 폴더를 NAS·클라우드 드라이브로 한 번 더 옮기세요.
+
+```bash
+mkdir -p backups                      # compose 실행 전에 한 번 (컨테이너가 쓸 수 있게)
+docker compose exec -T api python -m backend.backup            # 지금 백업
+docker compose exec -T api python -m backend.backup --keep 30  # 30개 보관
+```
+
+cron 예시(매일 새벽 3시, 서버 시간대 기준):
+
+```bash
+0 3 * * * cd /path/to/app && docker compose exec -T api python -m backend.backup
+```
+
+복원(가족에게 잠시 쓰지 말라고 알린 뒤):
+
+```bash
+ls backups/                                        # 되돌릴 파일 고르기
+docker compose stop api
+docker compose run --rm -T api python -m backend.backup --restore twin-20260930-030000.db
+docker compose start api
+```
+
+- 복원 직전 DB는 `backups/pre-restore-…db`로 자동 저장됩니다. 잘못 복원했으면 그 파일로 다시 복원하세요.
+- **`docker compose cp`로 DB 파일을 직접 덮어쓰지 마세요.** 파일 소유자가 바뀌어 앱이 읽기만 되고 쓰기는 500 에러가 납니다. `--restore`는 파일을 바꾸지 않고 내용만 옮깁니다.
+- 파일 이름의 시각은 컨테이너 시간(UTC)입니다.
+- PostgreSQL을 쓰면 이 도구 대신 `pg_dump`/`pg_restore`를 쓰세요.
+
 ## 유통기한 푸시 알림
 
 매일 아침 가구별로 “유통기한 임박 · 장보기” 요약을 알림을 켠 기기에 보냅니다. 알릴 것이 없는 날은 보내지 않습니다.

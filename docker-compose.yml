@@ -20,8 +20,11 @@ services:
     environment:
       ML_URL: http://ml:8001
       DATABASE_URL: sqlite:////data/twin.db
+      BACKUP_DIR: /backups
     volumes:
       - twin-data:/data
+      # 백업은 DB와 다른 곳(호스트 폴더)에 둔다. 여기서 NAS·클라우드로 옮기면 된다
+      - ./backups:/backups
     depends_on:
       - ml
     restart: unless-stopped
