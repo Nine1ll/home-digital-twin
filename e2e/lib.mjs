@@ -7,8 +7,10 @@ export const DEMO = { email: "demo@example.com", password: "demo12345" };
 
 // 페이지를 열고 fn을 실행한다. 페이지 JS 에러가 하나라도 나면 실패, 브라우저는 항상 닫는다
 export async function withPage(fn, { width = 390, height = 844, login = true, context = {}, setup } = {}) {
-  // 로컬은 CHROME_PATH(설치된 Chrome), CI는 playwright가 받은 Chromium
-  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+  // 로컬은 CHROME_PATH(설치된 Chrome), 없으면 playwright가 받은 Chromium.
+  // 기본 headless shell은 알림 권한을 줘도 denied라서 정식 Chromium 채널을 쓴다
+  const path = process.env.CHROME_PATH;
+  const browser = await chromium.launch(path ? { executablePath: path } : { channel: "chromium" });
   try {
     const ctx = await browser.newContext({
       viewport: { width, height },

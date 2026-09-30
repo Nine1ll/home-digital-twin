@@ -39,6 +39,7 @@ cd e2e && npm ci && bash stack.sh up && CHROME_PATH="/Applications/Google Chrome
 - 스키마 변경: 모델만 바꾸면 운영 DB에 반영 안 됨 → `alembic revision --autogenerate -m "…"` 후 파일을 읽어 확인. 빠뜨리면 `tests/test_migrations.py`가 실패한다.
 - 복원: `docker compose cp`로 DB 파일을 덮어쓰면 소유자가 바뀌어 쓰기 500. `python -m backend.backup --restore <파일>`만 쓴다.
 - E2E: 같은 문구 토스트를 연달아 기다리면 이전 토스트로 통과한다 → 항상 `lib.mjs`의 `toast()`(확인 후 비움)를 쓴다. 테스트는 앞 테스트가 바꾼 데이터 위에서도 통과하게 상대값으로 확인.
+- E2E 브라우저: Playwright 기본 headless shell은 알림 권한을 줘도 `denied` → `channel: "chromium"`(lib.mjs). CI 실패 이유는 `::error` 주석으로 남으니 `check-runs/<job>/annotations` API로 읽는다.
 - CSS: 1열 그리드는 `minmax(0, 1fr)`(auto면 패널이 넘친다). 320px까지 `e2e/tests/08-no-overflow.mjs`로 확인. 모달 위 알림은 `popover`여야 보인다.
 - 셸: zsh는 따옴표 없는 `$VAR`를 단어로 나누지 않는다(`$C stop ml` → 127).
 - `node --check frontend/app.js`는 로컬 Node 22.2에서 ES 모듈 인식 실패 → `node --input-type=module --check < frontend/app.js`.
