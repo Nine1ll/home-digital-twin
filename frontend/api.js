@@ -1,4 +1,5 @@
-// 백엔드가 같은 origin에서 정적 파일을 제공하므로 배포 주소를 하드코딩하지 않는다.
+// 배포 주소를 코드에 하드코딩하지 않고 config.js 한 곳에서 바꾼다.
+import { API_BASE } from "./config.js";
 // 앱을 닫아도 로그인이 유지되도록 기기에 저장한다(토큰 30일)
 export const token = () => localStorage.getItem("twin_token");
 export const setToken = (value) =>
@@ -26,7 +27,7 @@ export async function api(
   const controller = new AbortController(),
     timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch(`/api${path}`, {
+    const response = await fetch(`${API_BASE}/api${path}`, {
       method,
       headers,
       body: payload,

@@ -586,10 +586,7 @@ async def recognize(file: UploadFile = File(...), user: User = Depends(current_u
     return await identify_photo(content)
 
 
-app.mount(
-    "/",
-    StaticFiles(
-        directory=Path(__file__).resolve().parent.parent / "frontend", html=True
-    ),
-    name="frontend",
-)
+# 한 서버로 실행할 때만 화면도 제공한다. 화면을 따로 배포하면 frontend/ 없이 API만 뜬다
+FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
+if FRONTEND.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND, html=True), name="frontend")
