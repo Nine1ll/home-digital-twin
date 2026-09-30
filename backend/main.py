@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from .db import Base, engine, get_db
+from .db import engine, get_db
+from .migrate import migrate
 from .models import (
     Household,
     User,
@@ -39,7 +40,7 @@ from . import push
 
 @asynccontextmanager
 async def lifespan(app):
-    Base.metadata.create_all(engine)
+    migrate(engine)
     yield
 
 

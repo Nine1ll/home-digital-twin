@@ -6,6 +6,15 @@
 
 목표: 구조를 배우기 위해 한 프로세스였던 서비스를 화면(web), API(api), 예측(ml) 세 서버로 나눕니다. 설계 이유와 실패 시나리오는 `docs/ARCHITECTURE.md`의 ‘서버 분리’에 정리했습니다.
 
+### feat(db): Alembic 마이그레이션
+
+- 앱 시작 시 `create_all` 대신 `backend/migrate.py`가 마이그레이션을 적용합니다(`0001` 초기 스키마, `0002` 푸시 구독). 이제 기존 테이블에 컬럼을 추가해도 운영 DB가 따라옵니다.
+- **기존 DB 이어받기**: 도입 전에 `create_all`로 만든 DB는 있는 테이블을 보고 `0001`(푸시 테이블 없음) 또는 `0002`로 표시만 하고 이어서 적용합니다. 데이터는 건드리지 않습니다.
+- **실수 방지**: `tests/test_migrations.py`가 “마이그레이션을 모두 적용한 DB = 모델”을 비교합니다. 모델에 컬럼을 넣고 마이그레이션을 빠뜨리자 `add_column … memo`로 실패하는 것을 확인했습니다.
+- SQLite는 ALTER가 약해 batch 모드를 켭니다. 새 마이그레이션은 `alembic revision --autogenerate -m "…"`(`LEARNING.md` 8장).
+- 의존성 추가: `alembic==1.20.0`.
+- 검증: `pytest` 34 passed(모델 일치·재실행 안전, 옛 DB 두 종류의 데이터 보존과 버전 표시). Docker에서 빈 볼륨으로 시작 → 버전 `0002`, 재시작 에러 없음. **PostgreSQL에서는 실행하지 않았습니다.**
+
 ### feat(ops): 자동 백업과 안전한 복원
 
 - `python -m backend.backup`: SQLite를 `BACKUP_DIR`(compose에서는 호스트 `./backups`)에 `twin-날짜-시각.db`로 저장하고 최근 N개(기본 7)만 남깁니다. 서버가 쓰는 도중에도 `sqlite3` backup API로 일관된 사본을 만듭니다(표준 라이브러리, 의존성 없음).

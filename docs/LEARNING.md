@@ -65,6 +65,29 @@
 - 예측 결과를 api가 잠시(예: 10분) 기억하게 해서, ml이 잠깐 죽어도 직전 예측을 보여 주세요. 오래된 값임을 화면에 어떻게 알릴지도 정하세요.
 - 사진 인식(`recognition.py`, Ollama 호출)을 ml 서버 뒤로 옮겨 “모든 모델은 ml 뒤에” 구조를 만들어 보세요. api가 사진을 받는 곳과 ml이 모델을 부르는 곳의 책임을 나눠 보세요.
 
+## 8. DB 스키마 바꾸기 (마이그레이션)
+
+앱은 시작할 때 `backend/migrate.py`가 `backend/migrations/versions/`의 마이그레이션을 차례로 적용합니다. 모델(`models.py`)만 바꾸면 운영 DB에는 반영되지 않습니다.
+
+컬럼 하나를 추가하는 순서:
+
+```bash
+# 1. models.py 수정 (예: Product에 category = Column(String(30), nullable=True))
+# 2. 마이그레이션 생성: 현재 DB와 모델을 비교해 파일을 만들어 준다
+DATABASE_URL=sqlite:///./twin.db alembic upgrade head
+DATABASE_URL=sqlite:///./twin.db alembic revision --autogenerate -m "product category"
+# 3. 생성된 파일을 반드시 읽어 본다(이름 변경을 삭제+추가로 오해하는 경우가 있다)
+# 4. 테스트: 마이그레이션을 빠뜨리면 tests/test_migrations.py가 실패한다
+pytest -q
+# 5. 배포 전 운영 DB 백업 → 배포(앱 시작 시 자동 적용)
+```
+
+질문:
+
+- `nullable=False` 컬럼을 기존 행이 있는 테이블에 추가하면 무엇이 문제인가요? 기본값(`server_default`)은 왜 필요한가요?
+- SQLite는 ALTER가 약해서 `env.py`가 batch 모드를 켭니다. batch 모드는 내부적으로 무엇을 하나요?
+- 마이그레이션 도입 전 DB(`create_all`로 만든)는 `legacy_revision()`이 어떻게 처리하나요?
+
 ## 커밋 읽는 법
 
 ```bash

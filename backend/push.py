@@ -101,9 +101,10 @@ def main():
         return print(generate_keys())
     if not enabled():
         raise SystemExit("VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY를 설정하세요")
-    from .db import SessionLocal, Base, engine
+    from .db import SessionLocal, engine
+    from .migrate import migrate
 
-    Base.metadata.create_all(engine)
+    migrate(engine)
     with SessionLocal() as db:
         print(f"{notify_all(db)}건 보냄")
 

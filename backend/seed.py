@@ -4,7 +4,8 @@ import argparse
 import getpass
 import secrets
 from datetime import datetime, timezone, timedelta
-from .db import Base, engine, SessionLocal
+from .db import engine, SessionLocal
+from .migrate import migrate
 from .models import Household, User, Location, Product, Batch, Activity
 from .auth import hash_password
 
@@ -18,7 +19,7 @@ def main():
     password = getpass.getpass("예시 계정 비밀번호 (8자 이상): ")
     if len(password) < 8 or len(password.encode()) > 72:
         raise SystemExit("8자 이상, UTF-8 72바이트 이하로 입력하세요")
-    Base.metadata.create_all(engine)
+    migrate(engine)
     with SessionLocal() as db:
         if db.query(User).filter_by(email=args.email.lower()).first():
             raise SystemExit("이미 있는 이메일입니다. 덮어쓰지 않았습니다.")
