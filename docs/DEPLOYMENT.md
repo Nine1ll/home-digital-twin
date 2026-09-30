@@ -26,6 +26,28 @@ docker run --rm -p 8000:8000 --env-file .env -v twin-data:/data home-digital-twi
 
 Docker 기본 DB는 `/data/twin.db`입니다. `.env`에 `DATABASE_URL=sqlite:///./twin.db`가 있으면 이 기본값을 덮어쓰므로 Docker에서는 `sqlite:////data/twin.db`로 바꾸세요. 이미지에는 앱과 프론트만 포함하고 테스트용 계정/데이터를 포함하지 않습니다. 컨테이너 구동 자체는 이 작업 환경에서 검증하지 않았습니다.
 
+## 유통기한 푸시 알림
+
+매일 아침 가구별로 “유통기한 임박 · 장보기” 요약을 알림을 켠 기기에 보냅니다. 알릴 것이 없는 날은 보내지 않습니다.
+
+1. 키를 한 번 만들어 `.env`(또는 Render 환경변수)에 넣습니다. **키를 바꾸면 모든 기기가 알림을 다시 켜야 합니다.**
+   ```bash
+   python -m backend.push --keys
+   ```
+   `VAPID_SUBJECT`에는 푸시 서비스가 문제 시 연락할 `mailto:` 주소를 넣으세요.
+2. 앱을 HTTPS로 엽니다(푸시·서비스워커는 HTTPS 또는 localhost에서만 동작). 설정 → 유통기한 알림 → 알림 켜기 → 테스트 알림 보내기로 확인합니다.
+   - 아이폰·아이패드(iOS 16.4+): 사파리 공유 → 홈 화면에 추가한 앱에서만 켤 수 있습니다.
+3. 발송을 예약합니다. 서버 시간대 기준이니 한국 시간 오전 9시는 서버가 UTC면 `0 0 * * *`입니다.
+   ```bash
+   # 집 서버(Docker): 호스트 crontab
+   0 9 * * * docker exec home-digital-twin python -m backend.push
+   # 직접 실행
+   0 9 * * * cd /path/to/app && .venv/bin/python -m backend.push
+   ```
+   Render는 같은 저장소로 Cron Job을 만들고 명령을 `python -m backend.push`, 환경변수는 웹 서비스와 같게 둡니다.
+
+보안: 서버가 구독 주소로 직접 요청을 보내므로, 알려진 푸시 서비스(FCM, Mozilla, Apple, Windows) 주소만 받습니다. 만료된 구독(404/410)은 발송 중 자동 삭제되고, 로그아웃하면 그 기기의 구독도 해지됩니다.
+
 ## 운영 전 남은 범위
 
 개인/가족용 참고 MVP입니다. 인터넷 공개 운영 전에는 다음 범위를 실제 배포 환경에서 확인하세요.
@@ -37,4 +59,4 @@ Docker 기본 DB는 `/data/twin.db`입니다. `.env`에 `DATABASE_URL=sqlite:///
 - SQLite 테스트만 수행했습니다. PostgreSQL 환경의 실제 동시 요청과 연결 풀은 별도로 확인해야 합니다.
 - 활동 기록은 애플리케이션에서 수정 API를 제공하지 않는 방식입니다. DB 권한/보관 정책/백업까지 강제된 감사 시스템이 아닙니다.
 - 사진 인식은 최대 5MB이며 EXIF를 재인코딩으로 제거합니다. 외부 모델 서버의 로그/보관 정책은 해당 서버 운영자가 확인해야 합니다.
-- 식품 외 상품의 외부 카탈로그, 3D 스캔, 백그라운드 푸시는 후속 범위입니다.
+- 식품 외 상품의 외부 카탈로그, 3D 스캔은 후속 범위입니다.

@@ -103,3 +103,18 @@ class Activity(Base):
     to_location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
     note = Column(String(300), nullable=False, default="")
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
+
+class PushSubscription(Base):
+    """기기별 웹 푸시 구독. 같은 기기에서 다른 계정으로 로그인하면 소유자가 바뀐다."""
+
+    __tablename__ = "push_subscriptions"
+    id = Column(Integer, primary_key=True)
+    household_id = Column(
+        Integer, ForeignKey("households.id"), nullable=False, index=True
+    )
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    endpoint = Column(String(500), unique=True, nullable=False)
+    p256dh = Column(String(200), nullable=False)
+    auth = Column(String(100), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)

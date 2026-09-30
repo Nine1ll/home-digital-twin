@@ -1,10 +1,11 @@
 """관측 기록 기반 예측. 데이터 부족과 ML/기준선 사용을 명시한다."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 import math
 import numpy as np
 from sklearn.linear_model import Ridge
 from .models import Activity, Product, Batch
+from .inventory import batch_dict
 
 
 def consumption_forecast(events, today=None):
@@ -99,3 +100,49 @@ def recommendations(db, user, product_id):
         if e.action in ("receive", "move") and e.to_location_id:
             scores[e.to_location_id] = scores.get(e.to_location_id, 0) + 1
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+
+
+def household_insights(db, h):
+    """유통기한 임박 재고와 상품별 구매 안내. 화면과 푸시 알림이 함께 쓴다."""
+    today = datetime.now(timezone.utc).date()
+    batches = db.query(Batch).filter_by(household_id=h.id).all()
+    events = db.query(Activity).filter_by(household_id=h.id).all()
+    expiry = []
+    forecasts = []
+    for b in batches:
+        if b.expiry and b.quantity > 0:
+            remaining = (date.fromisoformat(b.expiry) - today).days
+            if remaining <= h.expiry_days:
+                expiry.append(batch_dict(db, b) | {"days_left": remaining})
+    for p in db.query(Product).filter_by(household_id=h.id):
+        related = [b for b in batches if b.product_id == p.id]
+        total = sum(b.quantity for b in related)
+        usable = sum(
+            b.quantity for b in related if not b.expiry or b.expiry >= today.isoformat()
+        )
+        forecast = consumption_forecast(
+            [e for e in events if e.product_id == p.id], today
+        )
+        rate = forecast["daily_rate"]
+        left = round(usable / rate, 1) if rate and rate > 0 else None
+        forecasts.append(
+            {
+                "product_id": p.id,
+                "name": p.name,
+                "unit": p.unit,
+                "total": total,
+                "usable": usable,
+                "minimum": p.minimum,
+                "lead_days": p.lead_days,
+                "days_until_empty": left,
+                "buy": usable <= p.minimum
+                or (left is not None and left <= p.lead_days),
+                **forecast,
+            }
+        )
+    return {
+        "expiry": sorted(expiry, key=lambda b: b["days_left"]),
+        "forecasts": forecasts,
+        "expiry_days": h.expiry_days,
+        "as_of": today,
+    }

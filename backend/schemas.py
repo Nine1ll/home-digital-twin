@@ -87,3 +87,39 @@ class SettingsInput(BaseModel):
         if not v.strip():
             raise ValueError("집 이름을 입력하세요")
         return v.strip()
+
+
+# 서버가 이 주소로 요청을 보내므로(SSRF) 알려진 푸시 서비스만 받는다
+PUSH_HOSTS = (
+    "fcm.googleapis.com",
+    "updates.push.services.mozilla.com",
+    ".push.apple.com",
+    ".notify.windows.com",
+)
+
+
+class PushKeys(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=200)
+    auth: str = Field(min_length=1, max_length=100)
+
+
+class PushSubscriptionInput(BaseModel):
+    endpoint: str = Field(max_length=500)
+    keys: PushKeys
+
+    @field_validator("endpoint")
+    @classmethod
+    def known_push_service(cls, v):
+        from urllib.parse import urlparse
+
+        url = urlparse(v)
+        host = url.hostname or ""
+        if url.scheme != "https" or not any(
+            host == h or (h.startswith(".") and host.endswith(h)) for h in PUSH_HOSTS
+        ):
+            raise ValueError("지원하지 않는 푸시 서비스 주소입니다")
+        return v
+
+
+class PushEndpoint(BaseModel):
+    endpoint: str = Field(max_length=500)

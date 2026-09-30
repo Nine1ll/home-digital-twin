@@ -12,3 +12,4 @@ psycopg==3.3.5
 psycopg-binary==3.3.5
 cryptography==50.0.1
 python-dotenv==1.2.3
+pywebpush==2.5.0

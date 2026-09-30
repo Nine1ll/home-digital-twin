@@ -998,9 +998,95 @@ function productDialog(id) {
     });
   };
 }
+// 웹 푸시 구독. 서비스워커는 알림을 켤 때만 등록한다
+const pushSupported =
+  "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+async function pushSubscription() {
+  if (!pushSupported) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+async function unsubscribe(sub) {
+  await api("/push/unsubscribe", {
+    method: "POST",
+    body: { endpoint: sub.endpoint },
+  });
+  await sub.unsubscribe();
+}
+async function pushSettings() {
+  const status = $("#push-status"),
+    actions = $("#push-actions");
+  const set = (text, buttons = "") => {
+    if (!status.isConnected) return;
+    status.textContent = text;
+    actions.innerHTML = buttons;
+  };
+  const ios =
+    /iPhone|iPad/.test(navigator.userAgent) ||
+    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if (!state.me.push_enabled)
+    return set("서버에 알림 키가 아직 설정되지 않았어요. (docs/DEPLOYMENT.md 참고)");
+  if (!pushSupported)
+    return set(
+      ios && !navigator.standalone
+        ? "사파리 공유 버튼 → ‘홈 화면에 추가’ 후, 추가된 앱에서 켤 수 있어요."
+        : "이 브라우저는 알림을 지원하지 않아요.",
+    );
+  if (Notification.permission === "denied")
+    return set("알림이 차단되어 있어요. 기기 설정에서 이 앱의 알림을 허용해 주세요.");
+  const sub = await pushSubscription();
+  if (!sub)
+    return (
+      set("꺼져 있어요.", '<button id="push-on" class="primary grow">알림 켜기</button>'),
+      ($("#push-on").onclick = enablePush)
+    );
+  set(
+    "이 기기에서 알림을 받고 있어요.",
+    '<button id="push-test" class="grow">테스트 알림 보내기</button><button id="push-off">끄기</button>',
+  );
+  $("#push-test").onclick = () =>
+    api("/push/test", { method: "POST" })
+      .then(() => toast("테스트 알림을 보냈어요"))
+      .catch((e) => toast(e.message));
+  $("#push-off").onclick = () =>
+    unsubscribe(sub)
+      .then(() => toast("알림을 껐어요"))
+      .catch((e) => toast(e.message))
+      .finally(pushSettings);
+}
+async function enablePush() {
+  $("#push-on").disabled = true;
+  try {
+    // 권한 요청은 버튼 탭(사용자 동작) 안에서 해야 한다
+    if ((await Notification.requestPermission()) !== "granted")
+      throw new Error("알림 권한이 필요해요.");
+    const [{ public_key }, reg] = await Promise.all([
+      api("/push/key"),
+      navigator.serviceWorker.register("/sw.js"),
+    ]);
+    await navigator.serviceWorker.ready;
+    const key = Uint8Array.from(
+      atob(public_key.replace(/-/g, "+").replace(/_/g, "/")),
+      (c) => c.charCodeAt(0),
+    );
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: key,
+    });
+    await api("/push/subscribe", { method: "POST", body: sub.toJSON() });
+    toast("알림을 켰어요. ‘테스트 알림 보내기’로 확인해 보세요.");
+  } catch (e) {
+    toast(e.message || "알림을 켜지 못했어요.");
+  }
+  pushSettings();
+}
+// 알림을 누르면 서비스워커가 보낸 화면으로 이동
+navigator.serviceWorker?.addEventListener("message", (e) => {
+  if (e.data?.view && state.me) navigate(e.data.view);
+});
 function settingsView() {
   $("#view").innerHTML =
-    `${heading("설정", "함께 관리하는 우리집")}<div class="grid"><section class="panel"><h2>우리집 설정</h2><form id="settings-form">${field("우리집 이름", "name", state.me.household_name, "text", 'required maxlength="100"')}${stepper("유통기한 임박 기준 (일)", "expiry_days", state.me.expiry_days, 0, 90)}<button type="submit" class="primary">저장</button></form></section><section class="panel"><h2>가족 초대</h2><p class="code">${esc(state.me.invite_code)}</p><p class="guide">가족이 가입할 때 이 코드를 입력하면 같은 집을 함께 관리합니다. 모든 가족은 같은 편집 권한을 가집니다.</p><div class="row" style="margin-top:14px"><button id="share-code" class="primary grow">초대 코드 보내기</button><button id="rotate-code">새 코드</button></div></section></div><section class="panel" style="margin-top:16px"><div class="row spread"><h2 style="margin:0">활동 기록</h2><button class="small" id="reload-activity">새로고침</button></div><div id="activities"></div><button class="small" id="more-activity" style="width:100%;margin-top:8px">더 보기</button></section><section class="panel" style="margin-top:16px"><h2>계정</h2><p class="muted">${esc(state.me.email)}</p><button id="logout" class="danger" style="width:100%">로그아웃</button></section>`;
+    `${heading("설정", "함께 관리하는 우리집")}<div class="grid"><section class="panel"><h2>우리집 설정</h2><form id="settings-form">${field("우리집 이름", "name", state.me.household_name, "text", 'required maxlength="100"')}${stepper("유통기한 임박 기준 (일)", "expiry_days", state.me.expiry_days, 0, 90)}<button type="submit" class="primary">저장</button></form></section><section class="panel"><h2>가족 초대</h2><p class="code">${esc(state.me.invite_code)}</p><p class="guide">가족이 가입할 때 이 코드를 입력하면 같은 집을 함께 관리합니다. 모든 가족은 같은 편집 권한을 가집니다.</p><div class="row" style="margin-top:14px"><button id="share-code" class="primary grow">초대 코드 보내기</button><button id="rotate-code">새 코드</button></div></section></div><section class="panel" style="margin-top:16px"><h2>유통기한 알림</h2><p class="muted" id="push-status">확인하고 있어요…</p><div class="row" id="push-actions"></div><p class="guide">매일 아침 유통기한 임박 물건과 장보기 목록을 이 기기로 보냅니다. 아이폰·아이패드는 사파리에서 ‘홈 화면에 추가’한 앱에서만 받을 수 있어요.</p></section><section class="panel" style="margin-top:16px"><div class="row spread"><h2 style="margin:0">활동 기록</h2><button class="small" id="reload-activity">새로고침</button></div><div id="activities"></div><button class="small" id="more-activity" style="width:100%;margin-top:8px">더 보기</button></section><section class="panel" style="margin-top:16px"><h2>계정</h2><p class="muted">${esc(state.me.email)}</p><button id="logout" class="danger" style="width:100%">로그아웃</button></section>`;
   $("#settings-form").onsubmit = (e) => {
     e.preventDefault();
     const f = e.currentTarget;
@@ -1019,7 +1105,12 @@ function settingsView() {
       `우리집 앱 초대 코드: ${state.me.invite_code}\n${location.origin} 에서 가입할 때 입력하세요.`,
       "초대 문구를 복사했어요",
     );
-  $("#logout").onclick = () => {
+  pushSettings();
+  $("#logout").onclick = async () => {
+    $("#logout").disabled = true;
+    await pushSubscription()
+      .then((s) => s && unsubscribe(s))
+      .catch(() => {});
     state.load++;
     setToken(null);
     stopCamera();
@@ -1081,6 +1172,10 @@ function settingsView() {
   $("#more-activity").onclick = () => load();
   $("#reload-activity").onclick = () => load(true);
   load();
+}
+if (location.hash === "#alerts") {
+  state.view = "alerts";
+  history.replaceState(null, "", "/");
 }
 if (token()) boot();
 else auth();

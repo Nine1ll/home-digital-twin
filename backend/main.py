@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
-from datetime import datetime, timezone, date, timedelta
+from datetime import datetime, timezone, timedelta
 import os, secrets, math
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
@@ -11,7 +11,15 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from .db import Base, engine, get_db
-from .models import Household, User, Location, Product, Batch, Activity
+from .models import (
+    Household,
+    User,
+    Location,
+    Product,
+    Batch,
+    Activity,
+    PushSubscription,
+)
 from .schemas import (
     Signup,
     LocationInput,
@@ -19,11 +27,14 @@ from .schemas import (
     ActionInput,
     ProductInput,
     SettingsInput,
+    PushSubscriptionInput,
+    PushEndpoint,
 )
 from .auth import current_user, hash_password, verify_password, issue_token
 from .inventory import owned, path_for, add_batch, log, change_quantity, batch_dict
-from .intelligence import consumption_forecast, recommendations
+from .intelligence import recommendations, household_insights
 from .recognition import identify_photo
+from . import push
 
 
 @asynccontextmanager
@@ -103,6 +114,7 @@ def me(db: Session = Depends(get_db), user: User = Depends(current_user)):
         "invite_code": h.invite_code,
         "expiry_days": h.expiry_days,
         "photo_enabled": bool(os.getenv("OLLAMA_URL")),
+        "push_enabled": push.enabled(),
     }
 
 
@@ -462,49 +474,59 @@ def activity(
 
 @app.get("/api/insights")
 def insights(db: Session = Depends(get_db), user: User = Depends(current_user)):
-    today = datetime.now(timezone.utc).date()
-    h = db.get(Household, user.household_id)
-    batches = db.query(Batch).filter_by(household_id=user.household_id).all()
-    events = db.query(Activity).filter_by(household_id=user.household_id).all()
-    expiry = []
-    forecasts = []
-    for b in batches:
-        if b.expiry and b.quantity > 0:
-            remaining = (date.fromisoformat(b.expiry) - today).days
-            if remaining <= h.expiry_days:
-                expiry.append(batch_dict(db, b) | {"days_left": remaining})
-    for p in db.query(Product).filter_by(household_id=user.household_id):
-        related = [b for b in batches if b.product_id == p.id]
-        total = sum(b.quantity for b in related)
-        usable = sum(
-            b.quantity for b in related if not b.expiry or b.expiry >= today.isoformat()
-        )
-        forecast = consumption_forecast(
-            [e for e in events if e.product_id == p.id], today
-        )
-        rate = forecast["daily_rate"]
-        left = round(usable / rate, 1) if rate and rate > 0 else None
-        forecasts.append(
-            {
-                "product_id": p.id,
-                "name": p.name,
-                "unit": p.unit,
-                "total": total,
-                "usable": usable,
-                "minimum": p.minimum,
-                "lead_days": p.lead_days,
-                "days_until_empty": left,
-                "buy": usable <= p.minimum
-                or (left is not None and left <= p.lead_days),
-                **forecast,
-            }
-        )
-    return {
-        "expiry": sorted(expiry, key=lambda b: b["days_left"]),
-        "forecasts": forecasts,
-        "expiry_days": h.expiry_days,
-        "as_of": today,
+    return household_insights(db, db.get(Household, user.household_id))
+
+
+@app.get("/api/push/key")
+def push_key(user: User = Depends(current_user)):
+    return {"public_key": os.getenv("VAPID_PUBLIC_KEY") if push.enabled() else None}
+
+
+@app.post("/api/push/subscribe")
+def push_subscribe(
+    data: PushSubscriptionInput,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    if not push.enabled():
+        raise HTTPException(503, "서버에 알림 키가 설정되지 않았습니다")
+    # 같은 기기에서 다른 계정으로 로그인했다면 새 계정으로 옮긴다
+    sub = db.query(PushSubscription).filter_by(endpoint=data.endpoint).first()
+    if not sub:
+        sub = PushSubscription(endpoint=data.endpoint)
+        db.add(sub)
+    sub.household_id = user.household_id
+    sub.user_id = user.id
+    sub.p256dh = data.keys.p256dh
+    sub.auth = data.keys.auth
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/push/unsubscribe")
+def push_unsubscribe(
+    data: PushEndpoint,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    db.query(PushSubscription).filter_by(
+        endpoint=data.endpoint, user_id=user.id
+    ).delete()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/push/test")
+def push_test(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    subs = db.query(PushSubscription).filter_by(user_id=user.id).all()
+    if not push.enabled() or not subs:
+        raise HTTPException(409, "이 계정에 알림을 켠 기기가 없습니다")
+    payload = push.message(db, db.get(Household, user.household_id)) or {
+        "title": "우리집 알림",
+        "body": "알림이 연결됐어요. 지금은 확인할 것이 없어요.",
+        "view": "alerts",
     }
+    return {"sent": push.deliver(db, subs, payload)}
 
 
 @app.get("/api/barcode/{code}")
