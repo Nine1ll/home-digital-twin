@@ -12,11 +12,17 @@ Python 3.12 기준입니다. Node 빌드 없이 FastAPI가 프론트 파일도 �
 python -m venv .venv
 source .venv/bin/activate
 # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn backend.main:app --reload
+pip install -r requirements-dev.txt   # API + ML 서버 의존성과 pytest
+uvicorn backend.main:app --reload     # API + 화면 (8000)
 ```
 
-브라우저에서 `http://localhost:8000`을 열고 가입합니다. API 문서는 `http://localhost:8000/docs`입니다. 개발 환경에서 비밀키를 설정하지 않으면 서버 재시작 시 재로그인이 필요합니다. `.env`를 사용할 때는 아래처럼 실행하세요.
+소비 예측은 별도 ML 서버가 계산합니다. 다른 터미널에서 띄우세요. 띄우지 않아도 앱은 동작하고 예측만 ‘예측 일시 중단’으로 표시됩니다.
+
+```bash
+uvicorn ml.main:app --port 8001 --reload
+```
+
+브라우저에서 `http://localhost:8000`을 열고 가입합니다. 세 서버(화면·API·ML)로 나눠 실행하는 방법은 [서버 분리](docs/ARCHITECTURE.md#서버-분리)를 보세요. API 문서는 `http://localhost:8000/docs`입니다. 개발 환경에서 비밀키를 설정하지 않으면 서버 재시작 시 재로그인이 필요합니다. `.env`를 사용할 때는 아래처럼 실행하세요.
 
 ```bash
 cp .env.example .env
@@ -85,7 +91,8 @@ python -m backend.seed --email demo@example.com
 - `backend/models.py`: 데이터 구조
 - `backend/inventory.py`: 소유권·수량 변경·활동 이력
 - `backend/main.py`: API와 요청 처리
-- `backend/intelligence.py`: 위치 추천과 예측
+- `backend/intelligence.py`: 알림 계산, 위치 추천, ML 서버 호출과 장애 대비
+- `ml/forecast.py`, `ml/main.py`: 예측 서버(DB 없이 계산만)
 - `backend/recognition.py`: 외부 사진 인식 어댑터
 - `frontend/api.js`: 통신과 시간 제한
 - `frontend/app.js`: 공간·검색·등록·알림·설정 화면

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from types import SimpleNamespace
-from backend.intelligence import consumption_forecast
+from ml.forecast import consumption_forecast
 
 
 def event(days, action, quantity=1):

@@ -9,6 +9,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from backend.db import Base, get_db
 from backend.main import app
+from backend import intelligence
+from ml.main import app as ml_app
 
 
 @pytest.fixture
@@ -29,8 +31,12 @@ def client():
             yield session
 
     app.dependency_overrides[get_db] = db
+    # 백엔드 → ML 서버 호출을 네트워크 없이 ML 앱으로 바로 보낸다
+    real_ml = intelligence.ml
+    intelligence.ml = TestClient(ml_app)
     with TestClient(app) as c:
         yield c
+    intelligence.ml = real_ml
     app.dependency_overrides.clear()
     engine.dispose()
 

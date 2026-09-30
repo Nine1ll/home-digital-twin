@@ -1,92 +1,50 @@
-"""관측 기록 기반 예측. 데이터 부족과 ML/기준선 사용을 명시한다."""
+"""알림과 추천. 소비 예측 계산은 ML 서버(ml/)에 맡긴다."""
 
-from datetime import datetime, timezone, timedelta, date
-import math
-import numpy as np
-from sklearn.linear_model import Ridge
+import os
+from datetime import datetime, timezone, date
+import httpx
 from .models import Activity, Product, Batch
 from .inventory import batch_dict
 
+# 화면 한 번에 한 번만 호출한다(상품마다 호출하면 N+1). 테스트는 이 객체를 바꿔 끼운다
+ml = httpx.Client(
+    base_url=os.getenv("ML_URL", "http://localhost:8001"),
+    timeout=3,
+    headers={"X-Internal-Token": os.getenv("ML_TOKEN", "")},
+)
+UNAVAILABLE = {
+    "method": "unavailable",
+    "daily_rate": None,
+    "days_observed": 0,
+    "reason": "예측 서버에 연결하지 못해 최소 재고 기준만 적용했어요",
+    "validation_mae": None,
+}
 
-def consumption_forecast(events, today=None):
-    today = today or datetime.now(timezone.utc).date()
-    if not events:
-        return {
-            "method": "insufficient",
-            "daily_rate": None,
-            "days_observed": 0,
-            "reason": "소비 기록이 아직 없습니다",
-        }
-    start = min(e.created_at.date() for e in events)
-    days = min((today - start).days, 90)  # 오늘은 아직 끝나지 않았으므로 학습에서 제외
-    if days < 7:
-        return {
-            "method": "insufficient",
-            "daily_rate": None,
-            "days_observed": days,
-            "reason": "완료된 7일 이상의 기록이 필요합니다",
-        }
-    first = today - timedelta(days=days)
-    y = np.zeros(days)
-    for e in events:
-        i = (e.created_at.date() - first).days
-        if 0 <= i < days and e.action in ("consume", "undo"):
-            y[i] += e.quantity if e.action == "consume" else -e.quantity
-    y = np.maximum(y, 0)  # 자정을 넘겨 되돌린 경우 음수가 되지 않게
-    if np.count_nonzero(y) < 3:
-        return {
-            "method": "insufficient",
-            "daily_rate": None,
-            "days_observed": days,
-            "reason": "서로 다른 3일 이상의 소비 기록이 필요합니다",
-        }
-    baseline = float(np.mean(y[-14:]))
-    result = {
-        "method": "moving_average",
-        "daily_rate": round(baseline, 3),
-        "days_observed": days,
-        "reason": "최근 14일 평균 소비량",
-        "validation_mae": None,
-    }
-    if days >= 28 and np.count_nonzero(y) >= 8:
 
-        def features(i):
-            weekday = (first + timedelta(days=int(i))).weekday()
-            return [
-                i / 7,
-                math.sin(2 * math.pi * weekday / 7),
-                math.cos(2 * math.pi * weekday / 7),
-            ]
-
-        x = np.array([features(i) for i in range(days)])
-        split = days - 7
-        model = Ridge(alpha=1).fit(x[:split], y[:split])
-        ml_mae = float(
-            np.mean(np.abs(np.maximum(0, model.predict(x[split:])) - y[split:]))
+def fetch_forecasts(events_by_product, today):
+    """상품 id → 예측. ML 서버가 없거나 느리면 빈 dict(호출한 쪽이 UNAVAILABLE로 채움)."""
+    try:
+        r = ml.post(
+            "/forecast",
+            json={
+                "today": today.isoformat(),
+                "products": {
+                    str(pid): [
+                        {
+                            "created_at": e.created_at.isoformat(),
+                            "action": e.action,
+                            "quantity": e.quantity,
+                        }
+                        for e in events
+                    ]
+                    for pid, events in events_by_product.items()
+                },
+            },
         )
-        base_mae = float(
-            np.mean(np.abs(np.mean(y[max(0, split - 14) : split]) - y[split:]))
-        )
-        result["validation_mae"] = {
-            "ridge": round(ml_mae, 3),
-            "baseline": round(base_mae, 3),
-        }
-        if ml_mae < base_mae:
-            model.fit(x, y)
-            rate = float(
-                np.maximum(
-                    0,
-                    model.predict(
-                        np.array([features(i) for i in range(days, days + 7)])
-                    ),
-                ).mean()
-            )
-            result.update(
-                method="ridge",
-                daily_rate=round(rate, 3),
-                reason="최근 7일 시간순 검증에서 평균 기준선보다 오차가 낮은 Ridge 모델",
-            )
-    return result
+        r.raise_for_status()
+        return {int(k): v for k, v in r.json().items()}
+    except (httpx.HTTPError, ValueError):
+        return {}
 
 
 def recommendations(db, user, product_id):
@@ -114,15 +72,17 @@ def household_insights(db, h):
             remaining = (date.fromisoformat(b.expiry) - today).days
             if remaining <= h.expiry_days:
                 expiry.append(batch_dict(db, b) | {"days_left": remaining})
-    for p in db.query(Product).filter_by(household_id=h.id):
+    products = db.query(Product).filter_by(household_id=h.id).all()
+    predicted = fetch_forecasts(
+        {p.id: [e for e in events if e.product_id == p.id] for p in products}, today
+    )
+    for p in products:
         related = [b for b in batches if b.product_id == p.id]
         total = sum(b.quantity for b in related)
         usable = sum(
             b.quantity for b in related if not b.expiry or b.expiry >= today.isoformat()
         )
-        forecast = consumption_forecast(
-            [e for e in events if e.product_id == p.id], today
-        )
+        forecast = predicted.get(p.id, UNAVAILABLE)
         rate = forecast["daily_rate"]
         left = round(usable / rate, 1) if rate and rate > 0 else None
         forecasts.append(
