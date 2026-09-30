@@ -1034,8 +1034,21 @@ dialog h2 {
 }
 #toast:popover-open,
 #toast.show {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 14px;
   animation: sheet-up 0.2s ease-out;
+}
+.toast-action {
+  min-height: 36px;
+  margin: -6px -8px -6px 0;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 @media (min-width: 700px) {
   #toast {

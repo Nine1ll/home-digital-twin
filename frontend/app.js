@@ -51,6 +51,7 @@ const actionNames = {
   discard: "폐기",
   move: "이동",
   adjust: "수량 정정",
+  undo: "되돌리기",
 };
 const tabs = [
   ["home", "우리집"],
@@ -62,18 +63,24 @@ const tabs = [
 let toastTimer, cameraStream, cameraTimer, refreshedAt = 0;
 // popover는 모달 시트와 같은 최상위 레이어라 시트가 열려 있어도 위에 보인다.
 // 다시 열어야 가장 나중 레이어로 올라온다. 미지원 브라우저는 class로 표시
-function toast(message) {
+function toast(message, action = null) {
   const t = $("#toast");
-  t.textContent = message;
+  t.innerHTML =
+    esc(message) +
+    (action ? `<button class="toast-action">${esc(action.label)}</button>` : "");
+  const hide = () => (t.hidePopover ? t.hidePopover() : t.classList.remove("show"));
+  if (action)
+    t.querySelector("button").onclick = () => {
+      clearTimeout(toastTimer);
+      hide();
+      action.run();
+    };
   if (t.showPopover) {
     if (t.matches(":popover-open")) t.hidePopover();
     t.showPopover();
   } else t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(
-    () => (t.hidePopover ? t.hidePopover() : t.classList.remove("show")),
-    4000,
-  );
+  toastTimer = setTimeout(hide, action ? 7000 : 4000);
 }
 function errorHTML(e) {
   return `<div class="note error" role="alert">${esc(e.message)}</div>`;
@@ -635,7 +642,7 @@ function itemDialog(id, action) {
     const form = e.currentTarget;
     submit(form, async () => {
       const d = Object.fromEntries(new FormData(form));
-      await api(`/items/${id}/actions`, {
+      const r = await api(`/items/${id}/actions`, {
         method: "POST",
         body: {
           action,
@@ -646,7 +653,18 @@ function itemDialog(id, action) {
       });
       $("#dialog").close();
       await reloadView();
-      toast(`${actionNames[action]} 기록 완료 · ${it.name}`);
+      // 잘못 누른 '사용'은 예측을 틀어지게 하므로 바로 되돌릴 수 있게 한다
+      toast(
+        `${actionNames[action]} 기록 완료 · ${it.name}`,
+        r.activity_id && {
+          label: "되돌리기",
+          run: () =>
+            api(`/activity/${r.activity_id}/undo`, { method: "POST" })
+              .then(reloadView)
+              .then(() => toast(`되돌렸어요 · ${it.name}`))
+              .catch((e) => toast(e.message)),
+        },
+      );
     });
   };
 }

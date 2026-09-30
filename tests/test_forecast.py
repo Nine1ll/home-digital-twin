@@ -37,3 +37,10 @@ def test_time_order_validation_and_ridge_selection():
     assert f["method"] == "ridge"
     assert f["validation_mae"]["ridge"] < f["validation_mae"]["baseline"]
     assert f["daily_rate"] > 40
+
+
+def test_undo_cancels_consumption():
+    events = [event(14, "receive")] + [event(d, "consume") for d in range(1, 15)]
+    events += [event(d, "consume", 5) for d in range(1, 8)]
+    events += [event(d, "undo", 5) for d in range(1, 8)]
+    assert consumption_forecast(events)["daily_rate"] == 1

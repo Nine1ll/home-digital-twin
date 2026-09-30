@@ -322,3 +322,53 @@ def test_photo_response_with_mock_model(client, household, monkeypatch):
     )
     assert r.status_code == 200 and r.json()["name"] == "머그컵"
     assert r.json()["requires_confirmation"] is True
+
+
+def test_undo_last_use_only_once_by_same_user(client, household):
+    h, _, shelf = household
+    item = receive(client, h, shelf)
+    r = client.post(
+        f"/api/items/{item['id']}/actions",
+        headers=h,
+        json={"action": "consume", "quantity": 3},
+    )
+    assert r.json()["quantity"] == 1
+    undo = f"/api/activity/{r.json()['activity_id']}/undo"
+    code = client.get("/api/me", headers=h).json()["invite_code"]
+    family = client.post(
+        "/api/auth/signup",
+        json={
+            "email": "fam@example.com",
+            "password": "securepass123",
+            "invite_code": code,
+        },
+    ).json()
+    fam = {"Authorization": "Bearer " + family["access_token"]}
+    assert client.post(undo, headers=fam).status_code == 409
+    r = client.post(undo, headers=h)
+    assert r.status_code == 200 and r.json()["quantity"] == 4
+    assert client.post(undo, headers=h).status_code == 409
+    log = client.get("/api/activity", headers=h).json()
+    assert [a["action"] for a in log[:2]] == ["undo", "consume"]
+    r = client.post(
+        f"/api/items/{item['id']}/actions",
+        headers=h,
+        json={"action": "discard", "quantity": 1},
+    )
+    assert "activity_id" not in r.json()
+
+
+def test_undo_expires(client, household, monkeypatch):
+    import backend.main as main
+    from datetime import timedelta
+
+    h, _, shelf = household
+    item = receive(client, h, shelf)
+    r = client.post(
+        f"/api/items/{item['id']}/actions",
+        headers=h,
+        json={"action": "consume", "quantity": 1},
+    )
+    monkeypatch.setattr(main, "UNDO_WINDOW", timedelta(seconds=-1))
+    undo = f"/api/activity/{r.json()['activity_id']}/undo"
+    assert client.post(undo, headers=h).status_code == 409

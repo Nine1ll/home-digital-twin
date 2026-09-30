@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 import os, secrets, math
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
@@ -323,7 +323,7 @@ def item_action(
         if data.action == "adjust" and not data.note.strip():
             raise HTTPException(422, "수량 정정 이유를 입력하세요")
         change_quantity(db, batch, delta)
-        log(
+        activity = log(
             db,
             user,
             batch,
@@ -332,6 +332,52 @@ def item_action(
             from_path=source,
             note=data.note,
         )
+    db.commit()
+    return batch_dict(db, batch) | (
+        {"activity_id": activity.id} if data.action == "consume" else {}
+    )
+
+
+UNDO_WINDOW = timedelta(minutes=10)
+
+
+@app.post("/api/activity/{identity}/undo")
+def undo(
+    identity: int, db: Session = Depends(get_db), user: User = Depends(current_user)
+):
+    """잘못 누른 '사용'을 되돌린다. 기록은 지우지 않고 되돌리기 기록을 남긴다.
+
+    그 재고의 마지막 기록일 때만 허용해 같은 사용을 두 번 되돌릴 수 없다."""
+    a = owned(db, Activity, identity, user)
+    latest = (
+        db.query(Activity)
+        .filter_by(batch_id=a.batch_id)
+        .order_by(Activity.id.desc())
+        .first()
+    )
+    created = (
+        a.created_at
+        if a.created_at.tzinfo
+        else a.created_at.replace(tzinfo=timezone.utc)
+    )
+    if (
+        a.action != "consume"
+        or a.user_id != user.id
+        or latest.id != a.id
+        or datetime.now(timezone.utc) - created > UNDO_WINDOW
+    ):
+        raise HTTPException(409, "방금 내가 기록한 사용만 10분 안에 되돌릴 수 있어요")
+    batch = db.get(Batch, a.batch_id)
+    change_quantity(db, batch, a.quantity)
+    log(
+        db,
+        user,
+        batch,
+        "undo",
+        a.quantity,
+        to_path=path_for(db, batch.location_id),
+        note="사용 되돌리기",
+    )
     db.commit()
     return batch_dict(db, batch)
 

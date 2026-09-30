@@ -73,21 +73,21 @@ def log(
     note="",
 ):
     product = db.get(Product, batch.product_id)
-    db.add(
-        Activity(
-            household_id=user.household_id,
-            user_id=user.id,
-            product_id=product.id,
-            batch_id=batch.id,
-            product_name=product.name,
-            action=action,
-            quantity=quantity,
-            from_path=from_path,
-            to_path=to_path,
-            to_location_id=to_location_id,
-            note=note,
-        )
+    activity = Activity(
+        household_id=user.household_id,
+        user_id=user.id,
+        product_id=product.id,
+        batch_id=batch.id,
+        product_name=product.name,
+        action=action,
+        quantity=quantity,
+        from_path=from_path,
+        to_path=to_path,
+        to_location_id=to_location_id,
+        note=note,
     )
+    db.add(activity)
+    return activity
 
 
 def batch_dict(db, batch):

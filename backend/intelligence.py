@@ -29,8 +29,9 @@ def consumption_forecast(events, today=None):
     y = np.zeros(days)
     for e in events:
         i = (e.created_at.date() - first).days
-        if e.action == "consume" and 0 <= i < days:
-            y[i] += e.quantity
+        if 0 <= i < days and e.action in ("consume", "undo"):
+            y[i] += e.quantity if e.action == "consume" else -e.quantity
+    y = np.maximum(y, 0)  # 자정을 넘겨 되돌린 경우 음수가 되지 않게
     if np.count_nonzero(y) < 3:
         return {
             "method": "insufficient",
