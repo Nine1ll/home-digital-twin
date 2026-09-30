@@ -512,6 +512,36 @@ small {
   font-size: 11px;
   font-weight: 500;
 }
+.map.edit {
+  touch-action: none;
+  cursor: crosshair;
+}
+.ghost {
+  position: absolute;
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  pointer-events: none;
+}
+.handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 30px;
+  height: 30px;
+  cursor: nwse-resize;
+}
+.handle::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  border-right: 3px solid var(--accent);
+  border-bottom: 3px solid var(--accent);
+  border-radius: 0 0 3px 0;
+}
 .map.edit .space {
   touch-action: none;
   cursor: grab;

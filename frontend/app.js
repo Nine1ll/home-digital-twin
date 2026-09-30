@@ -369,11 +369,11 @@ function homeView() {
           count = state.items
             .filter((i) => set.has(i.location_id))
             .reduce((a, i) => a + i.quantity, 0);
-        return `<button class="space ${l.kind} ${state.highlight === l.id ? "found" : ""}" data-space="${l.id}" style="left:${l.x * 5}%;top:${l.y * 5}%;width:${l.width * 5}%;height:${l.height * 5}%" aria-label="${esc(l.name)}, 물건 ${count}개"><strong>${esc(l.name)}</strong><small>${count}개</small></button>`;
+        return `<button class="space ${l.kind} ${state.highlight === l.id ? "found" : ""}" data-space="${l.id}" style="left:${l.x * 5}%;top:${l.y * 5}%;width:${l.width * 5}%;height:${l.height * 5}%" aria-label="${esc(l.name)}, 물건 ${count}개"><strong>${esc(l.name)}</strong><small>${count}개</small>${state.edit ? '<span class="handle" data-resize></span>' : ""}</button>`;
       })
       .join(
         "",
-      )}${!children.length ? `<div class="empty map-empty">${parent ? "이 공간 안에 서랍이나 칸을<br>더 나눌 수 있어요." : "아직 집이 비어 있어요.<br>‘공간’을 눌러 첫 번째 방을 만들어 보세요."}</div>` : ""}<span class="map-label">${state.edit ? "끌어서 배치 · 탭하면 공간 설정" : "공간 배치도 · 실제 치수와 다를 수 있음"}</span></div><p class="guide">${state.edit ? "드래그를 놓으면 위치가 저장됩니다." : "공간을 누르면 안으로 들어갑니다. 방 → 가구 → 수납 칸"}</p>${parent ? `<div class="row" style="margin-top:14px"><button id="register-here" class="primary grow">${svg(icons.add)}여기에 물건 넣기</button><button id="space-settings">공간 설정</button></div>` : ""}</section><section class="panel list-panel"><div class="row spread"><h2 style="margin:0">${parent ? "이곳의 물건" : "모든 물건"}</h2><span class="muted">${shown.length}개 항목</span></div>${shown.length ? shown.map(itemHTML).join("") : empty("물건을 등록하면 이곳에 표시됩니다.")}</section></div>`;
+      )}${!children.length ? `<div class="empty map-empty">${state.edit ? "빈 곳을 손가락으로 끌어<br>공간을 그려 보세요." : parent ? "이 공간 안에 서랍이나 칸을<br>더 나눌 수 있어요." : "아직 집이 비어 있어요.<br>‘배치’를 누르고 빈 곳을 끌어 방을 그려 보세요."}</div>` : ""}<span class="map-label">${state.edit ? "편집 중" : "공간 배치도 · 실제 치수와 다를 수 있음"}</span></div><p class="guide">${state.edit ? "빈 곳을 끌면 새 공간 · 공간을 끌면 이동 · 오른쪽 아래 모서리를 끌면 크기 · 탭하면 설정" : "공간을 누르면 안으로 들어갑니다. 방 → 가구 → 수납 칸"}</p>${parent ? `<div class="row" style="margin-top:14px"><button id="register-here" class="primary grow">${svg(icons.add)}여기에 물건 넣기</button><button id="space-settings">공간 설정</button></div>` : ""}</section><section class="panel list-panel"><div class="row spread"><h2 style="margin:0">${parent ? "이곳의 물건" : "모든 물건"}</h2><span class="muted">${shown.length}개 항목</span></div>${shown.length ? shown.map(itemHTML).join("") : empty("물건을 등록하면 이곳에 표시됩니다.")}</section></div>`;
   $(".crumbs").scrollLeft = 1e4;
   $("#new-space").onclick = () => locationDialog();
   $("#edit-map").onclick = () => {
@@ -390,6 +390,7 @@ function homeView() {
         homeView();
       }),
   );
+  if (state.edit) bindDraw($("#map"));
   document.querySelectorAll("[data-space]").forEach((b) => {
     if (state.edit) bindDrag(b);
     else
@@ -405,6 +406,16 @@ function homeView() {
   }
   bindItems();
 }
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v)),
+  snap = (v) => Math.round(v * 2) / 2; // 0.5칸 단위
+// 배치도(20×20칸) 안의 포인터 위치를 칸 단위로
+function gridPoint(e, rect) {
+  return {
+    x: clamp(((e.clientX - rect.left) / rect.width) * 20, 0, 20),
+    y: clamp(((e.clientY - rect.top) / rect.height) * 20, 0, 20),
+  };
+}
+// 공간을 끌면 이동, 모서리 핸들을 끌면 크기 조절, 그냥 탭하면 설정
 function bindDrag(button) {
   let start = null,
     moved = false;
@@ -414,32 +425,31 @@ function bindDrag(button) {
       (x) => x.id === Number(button.dataset.space),
     );
     const rect = $("#map").getBoundingClientRect();
-    start = { x: e.clientX, y: e.clientY, l: { ...l }, rect };
+    start = {
+      p: gridPoint(e, rect),
+      l: { ...l },
+      rect,
+      resize: !!e.target.closest("[data-resize]"),
+    };
     moved = false;
     button.setPointerCapture(e.pointerId);
   };
   button.onpointermove = (e) => {
     if (!start) return;
-    // 손가락 떨림은 탭으로 본다
-    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6 && !moved)
-      return;
+    const p = gridPoint(e, start.rect),
+      dx = p.x - start.p.x,
+      dy = p.y - start.p.y,
+      { l } = start;
+    // 손가락 떨림(약 6px)은 탭으로 본다
+    if (!moved && Math.hypot(dx, dy) * (start.rect.width / 20) < 6) return;
     moved = true;
-    const x = Math.max(
-      0,
-      Math.min(
-        20 - start.l.width,
-        start.l.x + ((e.clientX - start.x) / start.rect.width) * 20,
-      ),
-    );
-    const y = Math.max(
-      0,
-      Math.min(
-        20 - start.l.height,
-        start.l.y + ((e.clientY - start.y) / start.rect.height) * 20,
-      ),
-    );
-    button.style.left = x * 5 + "%";
-    button.style.top = y * 5 + "%";
+    if (start.resize) {
+      button.style.width = clamp(snap(l.width + dx), 1, 20 - l.x) * 5 + "%";
+      button.style.height = clamp(snap(l.height + dy), 1, 20 - l.y) * 5 + "%";
+    } else {
+      button.style.left = clamp(snap(l.x + dx), 0, 20 - l.width) * 5 + "%";
+      button.style.top = clamp(snap(l.y + dy), 0, 20 - l.height) * 5 + "%";
+    }
   };
   button.onpointercancel = () => {
     start = null;
@@ -447,22 +457,74 @@ function bindDrag(button) {
   };
   button.onpointerup = async () => {
     if (!start) return;
-    const { l } = start;
+    const { l, resize } = start;
     start = null;
     if (!moved) return locationDialog(l);
+    const pct = (k) => parseFloat(button.style[k]) / 5;
     const data = {
       ...l,
-      x: Math.round((parseFloat(button.style.left) / 5) * 10) / 10,
-      y: Math.round((parseFloat(button.style.top) / 5) * 10) / 10,
+      x: pct("left"),
+      y: pct("top"),
+      width: pct("width"),
+      height: pct("height"),
     };
     try {
       await api(`/locations/${l.id}`, { method: "PUT", body: data });
       await reloadView();
-      toast("공간 배치를 저장했어요");
+      toast(resize ? "크기를 저장했어요" : "위치를 저장했어요");
     } catch (e) {
       toast(e.message);
       homeView();
     }
+  };
+}
+// 빈 곳을 끌면 사각형을 그리고, 놓으면 이름만 묻는다(1칸 단위로 맞춤)
+function bindDraw(map) {
+  let start = null,
+    ghost = null;
+  const box = (e) => {
+    const p = gridPoint(e, start.rect),
+      x = Math.floor(Math.min(start.p.x, p.x)),
+      y = Math.floor(Math.min(start.p.y, p.y));
+    return {
+      x,
+      y,
+      width: Math.max(1, Math.ceil(Math.max(start.p.x, p.x)) - x),
+      height: Math.max(1, Math.ceil(Math.max(start.p.y, p.y)) - y),
+    };
+  };
+  map.onpointerdown = (e) => {
+    if (e.button !== 0 || e.target.closest("[data-space]")) return;
+    const rect = map.getBoundingClientRect(),
+      p = gridPoint(e, rect);
+    start = { rect, p: { x: Math.min(p.x, 19.99), y: Math.min(p.y, 19.99) } };
+    ghost = document.createElement("div");
+    ghost.className = "ghost";
+    map.append(ghost);
+    map.setPointerCapture(e.pointerId);
+  };
+  map.onpointermove = (e) => {
+    if (!start) return;
+    const b = box(e);
+    Object.assign(ghost.style, {
+      left: b.x * 5 + "%",
+      top: b.y * 5 + "%",
+      width: b.width * 5 + "%",
+      height: b.height * 5 + "%",
+    });
+  };
+  map.onpointerup = (e) => {
+    if (!start) return;
+    const b = box(e);
+    start = null;
+    ghost.remove();
+    if (b.width * b.height < 2)
+      return toast("빈 곳을 끌어서 공간 크기만큼 그려 주세요");
+    locationDialog(null, b);
+  };
+  map.onpointercancel = () => {
+    start = null;
+    ghost?.remove();
   };
 }
 const kinds = { room: "방", furniture: "가구", storage: "수납 칸" };
