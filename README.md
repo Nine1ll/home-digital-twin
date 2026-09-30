@@ -114,6 +114,18 @@ node --check frontend/api.js
 
 테스트는 별도 메모리 SQLite를 사용합니다. 기존 원본 테스트는 자동 수집하지 않습니다.
 
+화면까지 포함한 E2E는 세 서버를 Docker로 띄운 뒤 실제 브라우저로 폰 화면을 조작합니다(운영용 `.env`·8080 포트는 쓰지 않음, CI에서도 실행).
+
+```bash
+cd e2e && npm ci
+bash stack.sh up                  # 테스트 전용 서버 (http://localhost:18080)
+CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm test
+npm test -- undo                  # 이름에 undo가 든 테스트만
+bash stack.sh down
+```
+
+설치된 Chrome 대신 `npx playwright install chromium`으로 받은 브라우저를 쓰려면 `CHROME_PATH` 없이 실행합니다. 앞 테스트가 데이터를 바꾸므로 여러 번 돌리려면 `stack.sh down` → `up`으로 새로 시작하세요.
+
 ## 외부 자료와 라이선스
 
 프로젝트 코드는 MIT입니다. 원본 저작권 고지는 `LICENSE`와 원본 폴더에 보존했습니다.
