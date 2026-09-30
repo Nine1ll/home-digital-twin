@@ -372,3 +372,18 @@ def test_undo_expires(client, household, monkeypatch):
     monkeypatch.setattr(main, "UNDO_WINDOW", timedelta(seconds=-1))
     undo = f"/api/activity/{r.json()['activity_id']}/undo"
     assert client.post(undo, headers=h).status_code == 409
+
+
+def test_login_lasts_thirty_days(client, household):
+    from datetime import datetime, timezone
+    from jose import jwt
+
+    r = client.post(
+        "/api/auth/login",
+        data={"username": "one@example.com", "password": "securepass123"},
+    )
+    claims = jwt.get_unverified_claims(r.json()["access_token"])
+    days = (
+        datetime.fromtimestamp(claims["exp"], timezone.utc) - datetime.now(timezone.utc)
+    ).days
+    assert 29 <= days <= 30

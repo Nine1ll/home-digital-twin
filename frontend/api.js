@@ -1,9 +1,10 @@
 // 백엔드가 같은 origin에서 정적 파일을 제공하므로 배포 주소를 하드코딩하지 않는다.
-export const token = () => sessionStorage.getItem("twin_token");
+// 앱을 닫아도 로그인이 유지되도록 기기에 저장한다(토큰 30일)
+export const token = () => localStorage.getItem("twin_token");
 export const setToken = (value) =>
   value
-    ? sessionStorage.setItem("twin_token", value)
-    : sessionStorage.removeItem("twin_token");
+    ? localStorage.setItem("twin_token", value)
+    : localStorage.removeItem("twin_token");
 export async function api(
   path,
   { method = "GET", body, form, file, timeout = 20000 } = {},

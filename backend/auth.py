@@ -34,7 +34,9 @@ def issue_token(user):
         "access_token": jwt.encode(
             {
                 "sub": str(user.id),
-                "exp": datetime.now(timezone.utc) + timedelta(hours=24),
+                # 가족 폰에서 매번 로그인하지 않도록. 폐기 목록이 없으므로
+                # 기기 분실 시 SECRET_KEY를 바꿔 전체 로그아웃한다
+                "exp": datetime.now(timezone.utc) + timedelta(days=30),
             },
             SECRET,
             algorithm="HS256",
